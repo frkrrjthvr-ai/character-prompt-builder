@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Character Prompt Builder</title>
+  <style>
+    :root {
+      --bg: #f4f3ef; --surface: #fff; --surface-2: #faf9f6; --ink: #20201e;
+      --muted: #74736d; --line: #deddd6; --accent: #7357d9; --accent-soft: #eeeaff;
+      --danger: #b8324c; --success: #13755a; --shadow: 0 14px 40px rgba(38, 34, 25, .08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: radial-gradient(circle at 90% 0, #e9e2ff 0, transparent 25rem), var(--bg); font-family: Inter, "Noto Sans JP", "Hiragino Kaku Gothic ProN", system-ui, sans-serif; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    .app { max-width: 1440px; margin: 0 auto; padding: 28px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 24px; }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .logo { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; color: #fff; background: var(--ink); font-size: 20px; font-weight: 900; box-shadow: 5px 5px 0 #baa9ff; }
+    .eyebrow { margin: 0 0 3px; color: var(--accent); font-size: 11px; font-weight: 850; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(24px, 3vw, 35px); letter-spacing: -.04em; }
+    .header-note { color: var(--muted); font-size: 12px; }
+    .tabs { display: flex; width: fit-content; gap: 6px; margin-bottom: 20px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.75); }
+    .tab-btn { padding: 10px 18px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 800; }
+    .tab-btn.active { color: #fff; background: var(--ink); box-shadow: 0 5px 14px rgba(0,0,0,.14); }
+    .tab-view { display: none; }
+    .tab-view.active { display: block; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .btn { padding: 10px 15px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: var(--surface); font-weight: 780; transition: .18s; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 7px 17px rgba(0,0,0,.08); }
+    .btn-primary { color: #fff; border-color: var(--ink); background: var(--ink); }
+    .btn-accent { color: #fff; border-color: var(--accent); background: var(--accent); }
+    .btn-danger { color: var(--danger); border-color: #f0cad2; background: #fff5f7; }
+    .btn-small { padding: 7px 10px; font-size: 11px; }
+    input, textarea, select { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 11px; outline: 0; color: var(--ink); background: var(--surface-2); }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(115,87,217,.1); }
+    textarea { min-height: 88px; resize: vertical; line-height: 1.6; }
+    label { color: #55534d; font-size: 11px; font-weight: 820; }
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    .field.wide { grid-column: 1 / -1; }
+    .req { color: var(--danger); }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+    .section-head h2 { margin: 0 0 5px; font-size: 24px; letter-spacing: -.03em; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    .bulk-panel { margin-bottom: 16px; padding: 19px; }
+    .bulk-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 12px; }
+    .bulk-head h3 { margin: 0 0 5px; font-size: 16px; }
+    .bulk-head p { margin: 0; color: var(--muted); font-size: 11px; }
+    .bulk-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bulk-textarea { min-height: 290px; font-family: "Noto Sans Mono", "SFMono-Regular", Consolas, monospace; font-size: 12px; line-height: 1.75; }
+    .bulk-result { min-height: 18px; margin-bottom: 10px; color: var(--success); font-size: 11px; font-weight: 750; }
+    .bulk-result:empty { display: none; }
+    .bulk-result ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 16px; margin: 8px 0 0; padding: 10px 10px 10px 27px; border-radius: 10px; background: #f1faf6; font-weight: 500; }
+    .bulk-result li { overflow-wrap: anywhere; }
+
+    .character-layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .character-sidebar { position: sticky; top: 18px; padding: 16px; }
+    .sidebar-actions { display: flex; gap: 8px; margin-bottom: 9px; }
+    .data-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 12px; }
+    .file-input { display: none; }
+    .search { position: relative; margin-bottom: 12px; }
+    .search input { padding-left: 36px; }
+    .search span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+    .character-list { display: grid; gap: 8px; max-height: calc(100vh - 265px); overflow: auto; }
+    .character-card { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); cursor: pointer; }
+    .character-card:hover, .character-card.active { border-color: var(--accent); background: var(--accent-soft); }
+    .character-card b { display: block; margin-bottom: 4px; font-size: 13px; }
+    .character-card span { display: block; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty-mini { padding: 28px 12px; color: var(--muted); text-align: center; font-size: 12px; line-height: 1.7; }
+    .editor { padding: 22px; }
+    .editor-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
+    .editor-head h3 { margin: 0; }
+    .editor-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+
+    .builder-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr); gap: 16px; align-items: start; }
+    .setting-template-panel { display: grid; grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr) auto auto; gap: 8px; align-items: center; margin-bottom: 16px; padding: 14px; }
+    .setting-template-panel input, .setting-template-panel select { min-width: 0; }
+    .builder-form, .prompt-preview { padding: 22px; }
+    .builder-form h3, .prompt-preview h3 { margin: 0 0 17px; font-size: 17px; }
+    .builder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .fixed-settings { margin-top: 17px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .fixed-settings h4 { margin: 0 0 5px; font-size: 13px; }
+    .fixed-settings p { margin: 0 0 11px; color: var(--muted); font-size: 10px; }
+    .toggle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .toggle-option { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: #4d4b45; font-size: 11px; font-weight: 700; }
+    .toggle-option input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+    .prompt-preview { position: sticky; top: 18px; }
+    .prompt-box { min-height: 430px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #f8f7f3; white-space: pre-wrap; line-height: 1.85; font-size: 13px; }
+    .prompt-placeholder { color: var(--muted); }
+    .preview-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 14px; }
+
+    .library-tools { display: flex; gap: 10px; padding: 16px; margin-bottom: 15px; }
+    .library-tools input { flex: 1; }
+    .library-tools select { width: 250px; }
+    .example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .example-card { padding: 18px; }
+    .example-top { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 12px; }
+    .example-top h3 { margin: 0 0 5px; font-size: 16px; }
+    .example-date { color: var(--muted); font-size: 10px; white-space: nowrap; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+    .chip { padding: 4px 8px; border-radius: 999px; color: #5542a5; background: var(--accent-soft); font-size: 10px; font-weight: 750; }
+    .prompt-excerpt { display: -webkit-box; overflow: hidden; margin-bottom: 12px; color: #46443f; font-size: 12px; line-height: 1.7; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+    .example-notes { display: grid; gap: 6px; margin-bottom: 13px; color: var(--muted); font-size: 11px; }
+    .example-notes b { color: var(--ink); }
+    .card-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .empty-state { grid-column: 1 / -1; padding: 70px 24px; color: var(--muted); text-align: center; }
+    .empty-state b { display: block; margin-bottom: 7px; color: var(--ink); font-size: 17px; }
+
+    dialog { width: min(650px, calc(100% - 32px)); padding: 0; border: 0; border-radius: 20px; color: var(--ink); box-shadow: 0 28px 90px rgba(0,0,0,.25); }
+    dialog::backdrop { background: rgba(25,24,22,.58); backdrop-filter: blur(4px); }
+    .dialog-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+    .dialog-head h3 { margin: 0; }
+    .close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: #efeee9; font-size: 19px; }
+    .dialog-body { padding: 20px 22px 22px; }
+    .dialog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; padding-top: 15px; border-top: 1px solid var(--line); }
+    .toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; padding: 12px 16px; border-radius: 11px; color: #fff; background: var(--ink); box-shadow: var(--shadow); opacity: 0; transform: translateY(12px); pointer-events: none; transition: .22s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 980px) {
+      .character-layout, .builder-layout { grid-template-columns: 1fr; }
+      .setting-template-panel { grid-template-columns: 1fr auto; }
+      .setting-template-panel select { grid-column: 1 / -1; }
+      .character-sidebar, .prompt-preview { position: static; }
+      .character-list { max-height: 280px; }
+      .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 680px) {
+      .app { padding: 17px 13px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .tabs { width: 100%; }
+      .tab-btn { flex: 1; padding: 9px 5px; font-size: 11px; }
+      .form-grid, .builder-grid, .dialog-grid, .example-grid { grid-template-columns: 1fr; }
+      .toggle-grid { grid-template-columns: 1fr; }
+      .setting-template-panel { grid-template-columns: 1fr 1fr; }
+      .setting-template-panel input, .setting-template-panel select { grid-column: 1 / -1; }
+      .library-tools { flex-direction: column; }
+      .library-tools select { width: 100%; }
+      .editor, .builder-form, .prompt-preview { padding: 17px; }
+      .editor-head { align-items: flex-start; flex-direction: column; }
+      .prompt-box { min-height: 300px; }
+      .bulk-head { flex-direction: column; }
+      .bulk-actions { width: 100%; }
+      .bulk-actions .btn { flex: 1; }
+      .bulk-result ul { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand"><div class="logo">C</div><div><p class="eyebrow">IMAGE PROMPT WORKSPACE</p><h1>Character Prompt Builder</h1></div></div>
+      <div class="header-note">キャラ設定を固定して、毎回のプロンプト作成を速く正確に。</div>
+    </header>
+
+    <nav class="tabs" aria-label="画面切り替え">
+      <button class="tab-btn active" type="button" data-tab="characterView">1. キャラ管理</button>
+      <button class="tab-btn" type="button" data-tab="builderView">2. プロンプト作成</button>
+      <button class="tab-btn" type="button" data-tab="libraryView">3. 成功例ライブラリ</button>
+    </nav>
+
+    <section class="tab-view active" id="characterView">
+      <div class="section-head"><div><h2>キャラ管理</h2><p>変えたくない特徴をキャラごとに保存します。</p></div></div>
+      <section class="panel bulk-panel">
+        <div class="bulk-head">
+          <div><h3>一括貼り付け登録</h3><p>「キャラ名：」「年齢：」などのラベル付きテキストを貼り付けて、手入力フォームへ振り分けます。</p></div>
+          <div class="bulk-actions"><button class="btn" id="insertSampleBtn" type="button">サンプルを挿入</button><button class="btn" id="clearBulkBtn" type="button">一括入力欄をクリア</button><button class="btn btn-accent" id="applyBulkBtn" type="button">一括反映</button></div>
+        </div>
+        <div class="bulk-result" id="bulkResult" role="status"></div>
+        <textarea class="bulk-textarea" id="bulkCharacterText" placeholder="キャラ名：ユナ&#10;年齢：26歳&#10;身長：160cm&#10;体型情報：細いウエスト、丸みのあるヒップ…"></textarea>
+      </section>
+      <div class="character-layout">
+        <aside class="panel character-sidebar">
+          <div class="sidebar-actions"><button class="btn btn-accent" id="addCharacterBtn" type="button">＋ キャラ追加</button></div>
+          <div class="data-actions"><button class="btn btn-small" id="exportCharactersBtn" type="button">書き出し</button><button class="btn btn-small" id="importCharactersBtn" type="button">読み込み</button></div>
+          <input class="file-input" id="importCharactersFile" type="file" accept=".json,application/json">
+          <div class="search"><span>⌕</span><input id="characterSearch" type="search" placeholder="キャラ名を検索"></div>
+          <div class="character-list" id="characterList"></div>
+        </aside>
+        <section class="panel editor">
+          <div class="editor-head"><h3 id="characterEditorTitle">新しいキャラ</h3><div class="editor-actions"><button class="btn btn-danger" id="deleteCharacterBtn" type="button" hidden>削除</button><button class="btn btn-accent" id="saveAndNextCharacterBtn" type="submit" form="characterForm">保存して次のキャラを登録</button><button class="btn btn-primary" id="saveCharacterBtn" type="submit" form="characterForm">保存する</button></div></div>
+          <form id="characterForm"><input id="characterId" type="hidden"><div class="form-grid" id="characterFields"></div></form>
+        </section>
+      </div>
+    </section>
+
+    <section class="tab-view" id="builderView">
+      <div class="section-head"><div><h2>プロンプト作成</h2><p>固定設定と今回のシーンを組み合わせて完成文を生成します。</p></div></div>
+      <section class="panel bulk-panel">
+        <div class="bulk-head">
+          <div><h3>今回設定の一括入力</h3><p>衣装・場所・構図などのラベル付きテキストを貼り付けて、今回の設定へまとめて反映します。</p></div>
+          <div class="bulk-actions"><button class="btn" id="insertBuilderSampleBtn" type="button">サンプルを挿入</button><button class="btn" id="clearBuilderSettingsBtn" type="button">今回設定をクリア</button><button class="btn btn-danger" id="clearBuilderAllBtn" type="button">プロンプト作成欄を全クリア</button><button class="btn btn-accent" id="applyBuilderBulkBtn" type="button">一括反映</button></div>
+        </div>
+        <div class="bulk-result" id="builderBulkResult" role="status"></div>
+        <textarea class="bulk-textarea" id="bulkBuilderText" placeholder="衣装：白のクロップドシャツブラウス…&#10;場所：夕方の駅ビル連絡通路&#10;構図：待ち合わせ中にこちらに気づいた瞬間…"></textarea>
+      </section>
+      <section class="panel setting-template-panel" aria-label="今回設定テンプレ">
+        <input id="settingTemplateName" maxlength="80" placeholder="保存名（例：駅ビル待ち合わせ）">
+        <button class="btn btn-accent" id="saveSettingTemplateBtn" type="button">今回設定を保存</button>
+        <select id="settingTemplateSelect"><option value="">保存済みテンプレを選択</option></select>
+        <button class="btn" id="loadSettingTemplateBtn" type="button">呼び出す</button>
+        <button class="btn btn-danger" id="deleteSettingTemplateBtn" type="button">削除</button>
+      </section>
+      <div class="builder-layout">
+        <section class="panel builder-form"><h3>今回の設定</h3><div class="builder-grid" id="builderFields"></div><div class="fixed-settings"><h4>固定文の使用</h4><p>出力モードに合わせた推奨状態から、必要な文だけ個別に切り替えられます。</p><div class="toggle-grid" id="fixedSettings"></div></div></section>
+        <section class="panel prompt-preview"><h3>完成プロンプト</h3><div class="prompt-box" id="promptOutput"></div><div class="preview-actions"><button class="btn" id="copyPromptBtn" type="button">コピー</button><button class="btn btn-accent" id="saveExampleBtn" type="button">成功例へ保存</button></div></section>
+      </div>
+      <datalist id="outfitSuggestions"></datalist><datalist id="placeSuggestions"></datalist><datalist id="compositionSuggestions"></datalist>
+      <datalist id="cameraSuggestions"><option value="顔のアップ"><option value="バストアップ"><option value="腰上"><option value="全身"><option value="引きの画角"></datalist>
+      <datalist id="timeSuggestions"><option value="朝"><option value="昼"><option value="夕方"><option value="夜"><option value="ゴールデンアワー"></datalist>
+      <datalist id="lightSuggestions"><option value="柔らかな自然光"><option value="窓からの逆光"><option value="スタジオライト"><option value="ネオンライト"><option value="映画的な照明"></datalist>
+    </section>
+
+    <section class="tab-view" id="libraryView">
+      <div class="section-head"><div><h2>成功例ライブラリ</h2><p>再現したいプロンプトと学びを残します。</p></div></div>
+      <div class="panel library-tools"><input id="exampleSearch" type="search" placeholder="タイトルを検索"><select id="exampleCharacterFilter"><option value="all">すべてのキャラ</option></select></div>
+      <div class="example-grid" id="exampleList"></div>
+    </section>
+  </main>
+
+  <dialog id="saveExampleDialog">
+    <div class="dialog-head"><h3>成功例として保存</h3><button class="close" id="closeExampleDialog" type="button" aria-label="閉じる">×</button></div>
+    <form class="dialog-body" id="saveExampleForm">
+      <div class="dialog-grid">
+        <div class="field wide"><label for="exampleTitle">タイトル <span class="req">*</span></label><input id="exampleTitle" required maxlength="100" placeholder="例：夜のカフェ・バストアップ成功例"></div>
+        <div class="field wide"><label for="exampleGood">良かった点</label><textarea id="exampleGood" maxlength="1000"></textarea></div>
+        <div class="field"><label for="exampleRepro">再現性メモ</label><textarea id="exampleRepro" maxlength="1000"></textarea></div>
+        <div class="field"><label for="exampleImprove">次回改善点</label><textarea id="exampleImprove" maxlength="1000"></textarea></div>
+      </div>
+      <div class="dialog-actions"><button class="btn" id="cancelExampleDialog" type="button">キャンセル</button><button class="btn btn-primary" type="submit">保存する</button></div>
+    </form>
+  </dialog>
+  <dialog id="importConflictDialog">
+    <div class="dialog-head"><h3>同名キャラの読み込み方法</h3><button class="close" id="closeImportConflict" type="button" aria-label="閉じる">×</button></div>
+    <div class="dialog-body">
+      <p id="importConflictMessage" style="margin:0;color:var(--muted);font-size:13px;line-height:1.8"></p>
+      <div class="dialog-actions"><button class="btn" id="cancelImportConflict" type="button">キャンセル</button><button class="btn" id="renameImportBtn" type="button">別名で追加</button><button class="btn btn-primary" id="overwriteImportBtn" type="button">上書きする</button></div>
+    </div>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    (() => {
+      'use strict';
+      const CHARACTER_KEY = 'character_prompt_builder_characters_v1';
+      const EXAMPLE_KEY = 'character_prompt_builder_examples_v1';
+      const SETTING_TEMPLATE_KEY = 'character_prompt_builder_setting_templates_v1';
+      const $ = (id) => document.getElementById(id);
+      const uid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+      const load = (key) => { try { const value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value : []; } catch { return []; } };
+      const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+      const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+
+      const characterSchema = [
+        { key:'name', label:'キャラ名', required:true }, { key:'age', label:'年齢' }, { key:'height', label:'身長' }, { key:'weight', label:'体重' },
+        { key:'bodyInfo', label:'体型情報' }, { key:'hairstyle', label:'髪型' }, { key:'hairColor', label:'髪色' },
+        { key:'faceDirection', label:'顔の方向性', placeholder:'例：上品で親しみやすい、丸顔寄り' },
+        { key:'overallMood', label:'全体の雰囲気', placeholder:'例：静かで知的、透明感' },
+        { key:'coreDefinition', label:'コア定義', type:'textarea', wide:true },
+        { key:'faceReference', label:'顔の基準説明', type:'textarea', wide:true },
+        { key:'bodyLock', label:'体型固定文', type:'textarea', wide:true },
+        { key:'moodLock', label:'雰囲気固定文', type:'textarea', wide:true },
+        { key:'baseIntro', label:'ベース導入文', type:'textarea', wide:true },
+        { key:'prohibitions', label:'禁止事項', type:'textarea', wide:true, placeholder:'例：髪色を変えない、幼くしすぎない' },
+        { key:'commonOutfits', label:'よく使う衣装', type:'textarea', placeholder:'改行またはカンマ区切り' },
+        { key:'commonPlaces', label:'よく使う場所', type:'textarea', placeholder:'改行またはカンマ区切り' },
+        { key:'commonCompositions', label:'よく使う構図', type:'textarea', placeholder:'改行またはカンマ区切り' },
+        { key:'memo', label:'メモ', type:'textarea' },
+        { key:'unclassifiedMemo', label:'未分類メモ', type:'textarea', wide:true, placeholder:'一括貼り付けで分類できなかった文章を保持します' }
+      ];
+      const builderSchema = [
+        { key:'characterId', label:'キャラ選択', type:'select', wide:true },
+        { key:'outputMode', label:'出力モード', type:'select', wide:true, options:[['short','短め'],['standard','標準'],['detailed','詳細']] },
+        { key:'outfit', label:'衣装', list:'outfitSuggestions' }, { key:'place', label:'場所', list:'placeSuggestions' },
+        { key:'composition', label:'構図', list:'compositionSuggestions' }, { key:'pose', label:'ポーズ' },
+        { key:'expression', label:'表情' }, { key:'cameraDistance', label:'カメラ距離', list:'cameraSuggestions' },
+        { key:'timeOfDay', label:'時間帯', list:'timeSuggestions' }, { key:'light', label:'光', list:'lightSuggestions' },
+        { key:'mood', label:'雰囲気' }, { key:'extra', label:'補足', type:'textarea', wide:true }
+      ];
+      const fixedSettingSchema = [
+        { key:'includeBaseIntro', label:'ベース導入文' }, { key:'includeFaceReference', label:'顔の基準説明' },
+        { key:'includeBodyLock', label:'体型固定文' }, { key:'includeMoodLock', label:'雰囲気固定文' },
+        { key:'includeProhibitions', label:'禁止事項' }
+      ];
+      const builderBulkKeys = ['outfit','place','composition','pose','expression','cameraDistance','timeOfDay','light','mood','extra'];
+      const builderLabelMap = Object.fromEntries(builderSchema.filter((field) => builderBulkKeys.includes(field.key)).map((field) => [field.label, field.key]));
+      const builderSample = `衣装：白のクロップドシャツブラウス、アイスブルーのゆるネクタイ、ピンク×ブルーのチェックプリーツミニ、白ニーハイ、白スニーカー
+場所：夕方の駅ビル連絡通路
+構図：待ち合わせ中にこちらに気づいた瞬間。正面寄りから少し左の角度。自然なスマホスナップ。
+ポーズ：片足を少し前に出し、こちらへ一歩近づこうとしている自然な立ち姿
+表情：少しからかうような優しい微笑み
+カメラ距離：全身または膝上
+時間帯：夕方
+光：柔らかい自然光
+雰囲気：現実の商業施設で撮ったような、自然で上品な大人可愛いスナップ
+補足：手足は自然。広角歪みなし。実写寄り。`;
+      const characterLabelMap = Object.fromEntries(characterSchema.map((field) => [field.label, field.key]));
+      const characterSample = `キャラ名：ユナ
+年齢：26歳
+身長：160cm
+体型情報：細いウエスト、丸みのあるヒップ、女性らしい砂時計シルエット
+髪型：ゆるウェーブロング
+髪色：シルバーグレージュ
+顔の方向性：透明感のある大きな瞳、やわらかな頬、少し照れたようなやさしい微笑み
+全体の雰囲気：清潔感、透明感、上品さ、親しみやすさを持つ大人可愛い女性
+コア定義：究極の砂時計体型
+顔の基準説明：上品で親しみやすい大人可愛い顔立ち
+体型固定文：服装が変わっても、細いウエスト、自然な立体感のある上半身、丸みのあるヒップ、腰から太ももにかけての女性らしいシルエットを保つ
+雰囲気固定文：自然な実写スナップとして成立させ、清潔感と透明感を重視する
+ベース導入文：ユナを、実写寄りのファッションスナップとして描く。成人女性。
+禁止事項：学生風に寄せすぎない。コスプレ感を強くしすぎない。AI臭い肌質、破綻した手指、不自然な脚、過度な広角歪みを避ける
+よく使う衣装：韓国プレッピー、ホログラムセーラー、パールサイバー、白ブラウス
+よく使う場所：駅ビル連絡通路、商業施設、ホテルラウンジ、夜の街
+よく使う構図：待ち合わせでこちらに気づく、歩きながら振り返る、正面寄りから少し左
+メモ：ユナは透明感と親しみやすさを優先`;
+
+      let characters = load(CHARACTER_KEY);
+      let examples = load(EXAMPLE_KEY);
+      let settingTemplates = load(SETTING_TEMPLATE_KEY);
+      let currentPrompt = '';
+      let pendingCharacterImport = null;
+
+      function renderSchema() {
+        $('characterFields').innerHTML = characterSchema.map((field) => `<div class="field${field.wide ? ' wide' : ''}"><label for="char_${field.key}">${field.label}${field.required ? ' <span class="req">*</span>' : ''}</label>${field.type === 'textarea'
+          ? `<textarea id="char_${field.key}" ${field.required ? 'required' : ''} placeholder="${escapeHtml(field.placeholder || '')}"></textarea>`
+          : `<input id="char_${field.key}" ${field.required ? 'required' : ''} placeholder="${escapeHtml(field.placeholder || '')}">`}</div>`).join('');
+        $('builderFields').innerHTML = builderSchema.map((field) => `<div class="field${field.wide ? ' wide' : ''}"><label for="build_${field.key}">${field.label}</label>${field.type === 'select'
+          ? `<select id="build_${field.key}">${field.options ? field.options.map(([value, label]) => `<option value="${value}"${value === 'standard' ? ' selected' : ''}>${label}</option>`).join('') : '<option value="">キャラを選択してください</option>'}</select>`
+          : field.type === 'textarea' ? `<textarea id="build_${field.key}"></textarea>`
+          : `<input id="build_${field.key}" ${field.list ? `list="${field.list}"` : ''}>`}</div>`).join('');
+        $('fixedSettings').innerHTML = fixedSettingSchema.map((setting) => `<label class="toggle-option"><input id="build_${setting.key}" type="checkbox" checked>${setting.label}</label>`).join('');
+        builderSchema.forEach((field) => $(`build_${field.key}`).addEventListener('input', () => {
+          if (field.key === 'characterId') updateCharacterSuggestions();
+          if (field.key === 'outputMode') applyOutputModePreset();
+          generatePrompt();
+        }));
+        fixedSettingSchema.forEach((setting) => $(`build_${setting.key}`).addEventListener('change', generatePrompt));
+      }
+
+      function notify(message) {
+        $('toast').textContent = message; $('toast').classList.add('show');
+        clearTimeout(notify.timer); notify.timer = setTimeout(() => $('toast').classList.remove('show'), 2200);
+      }
+
+      function applyBulkCharacterText() {
+        const text = $('bulkCharacterText').value.replace(/^\uFEFF/, '');
+        const lines = text.split(/\r?\n/);
+        const updates = new Map();
+        const consumed = new Set();
+        const currentValue = (key) => updates.has(key) ? updates.get(key) : $(`char_${key}`).value.trim();
+        const appendUpdate = (key, value, separator = '\n') => {
+          const clean = String(value || '').trim();
+          if (!clean) return;
+          const current = currentValue(key);
+          if (current.includes(clean)) return;
+          updates.set(key, [current, clean].filter(Boolean).join(separator));
+        };
+        const setNatural = (key, value) => { if (value && !updates.has(key)) updates.set(key, value); };
+        const cleanListLine = (line) => line.trim().replace(/^[-・●*▪︎■□]\s*/, '').trim();
+        const markRange = (start, end) => { for (let i = start; i < end; i++) consumed.add(i); };
+
+        lines.forEach((line, index) => {
+          const match = line.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/);
+          if (!match) return;
+          const label = match[1].trim().replace(/^[・●\-]\s*/, '');
+          const key = characterLabelMap[label];
+          if (!key) return;
+          updates.set(key, match[2].trim());
+          consumed.add(index);
+        });
+
+        const numberPattern = '(\\d+(?:\\.\\d+)?)';
+        const nameLine = lines.findIndex((line) => /^\s*[一-龯ぁ-んァ-ヶー々・]{1,30}\s*[（(][A-Za-z][^）)]*[）)]\s*$/.test(line));
+        if (nameLine >= 0) {
+          const name = lines[nameLine].match(/^\s*([一-龯ぁ-んァ-ヶー々・]{1,30})\s*[（(]/)[1];
+          setNatural('name', name); consumed.add(nameLine);
+        }
+
+        lines.forEach((line, index) => {
+          let matched = false;
+          const height = line.match(new RegExp(`身長\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
+          if (height) { setNatural('height', `${height[1]}cm`); matched = true; }
+          const weight = line.match(new RegExp(`体重\\s*[：:]?\\s*(約|およそ)?\\s*${numberPattern}\\s*kg`, 'i'));
+          if (weight) { setNatural('weight', `${weight[1] ? '約' : ''}${weight[2]}kg`); matched = true; }
+          const age = line.match(/(?:成人女性[^\d]{0,12})?(\d{1,3})\s*歳/);
+          if (age) { setNatural('age', `${age[1]}歳`); matched = true; }
+          const hair = line.match(/髪は\s*([^。、,]+?)の([^。、,]+?)(?:[。、,]|$)/);
+          if (hair) {
+            setNatural('hairColor', hair[1].trim()); setNatural('hairstyle', hair[2].trim()); matched = true;
+          }
+          if (matched) consumed.add(index);
+        });
+
+        const bodyParts = [];
+        const addBodyPart = (value) => { if (value && !bodyParts.includes(value)) bodyParts.push(value); };
+        lines.forEach((line, index) => {
+          let matched = false;
+          const measurements = line.match(/\bB\s*\d+(?:\.\d+)?\s*[-ー－–—]\s*W\s*\d+(?:\.\d+)?\s*[-ー－–—]\s*H\s*\d+(?:\.\d+)?/i);
+          if (measurements) { addBodyPart(measurements[0].replace(/\s/g, '').replace(/[ー－–—]/g, '-').toUpperCase()); matched = true; }
+          const cup = line.match(/([A-Z])\s*カップ/i);
+          if (cup) { addBodyPart(`${cup[1].toUpperCase()}カップ`); matched = true; }
+          const underBust = line.match(new RegExp(`アンダーバスト\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
+          if (underBust) { addBodyPart(`アンダーバスト${underBust[1]}cm`); matched = true; }
+          const shoulder = line.match(new RegExp(`肩幅\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
+          if (shoulder) { addBodyPart(`肩幅${shoulder[1]}cm`); matched = true; }
+          const inseam = line.match(new RegExp(`股下\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
+          if (inseam) { addBodyPart(`股下${inseam[1]}cm`); matched = true; }
+          if (matched) consumed.add(index);
+        });
+        if (bodyParts.length) {
+          const baseBody = currentValue('bodyInfo');
+          const additions = bodyParts.filter((part) => !baseBody.includes(part));
+          updates.set('bodyInfo', [baseBody, ...additions].filter(Boolean).join('、'));
+        }
+
+        const headingIndex = (label) => lines.findIndex((line) => new RegExp(`^\\s*${label}\\s*[：:]`).test(line));
+        const nextBoundary = (start, tests) => {
+          for (let i = start + 1; i < lines.length; i++) if (tests.some((test) => test(lines[i]))) return i;
+          return lines.length;
+        };
+        const faceStart = lines.findIndex((line) => line.includes('透明感のある大きな瞳') && line.includes('やわらかな頬'));
+        if (faceStart >= 0) {
+          const faceEnd = nextBoundary(faceStart, [(line) => /体型は.+最重要固定要素/.test(line), (line) => line.includes('全体の印象は'), (line) => /^\s*(顔方向性|体型方向性|得意な衣装傾向|避けたい方向|撮影傾向)\s*[：:]/.test(line)]);
+          const faceText = lines.slice(faceStart, faceEnd).map((line) => line.trim()).filter(Boolean).join('\n');
+          appendUpdate('faceDirection', faceText); appendUpdate('faceReference', faceText); markRange(faceStart, faceEnd);
+        }
+
+        const bodyStart = lines.findIndex((line) => /体型は.+最重要固定要素/.test(line));
+        if (bodyStart >= 0) {
+          let bodyEnd = lines.findIndex((line, index) => index >= bodyStart && line.includes('オーバーレイヤーやシアー素材を使う場合も') && line.includes('砂時計シルエットが分かるようにする'));
+          bodyEnd = bodyEnd >= 0 ? bodyEnd + 1 : nextBoundary(bodyStart, [(line) => line.includes('全体の印象は'), (line) => /^\s*(顔方向性|体型方向性|得意な衣装傾向)\s*[：:]/.test(line)]);
+          const bodyText = lines.slice(bodyStart, bodyEnd).map((line) => line.trim()).filter(Boolean).join('\n');
+          appendUpdate('bodyLock', bodyText); markRange(bodyStart, bodyEnd);
+        }
+
+        const moodStart = lines.findIndex((line) => line.includes('全体の印象は') && line.includes('透明感'));
+        if (moodStart >= 0) {
+          const moodEnd = nextBoundary(moodStart, [(line) => /^\s*(顔方向性|体型方向性|得意な衣装傾向|避けたい方向|撮影傾向)\s*[：:]/.test(line)]);
+          const moodText = lines.slice(moodStart, moodEnd).map((line) => line.trim()).filter(Boolean).join('\n');
+          appendUpdate('overallMood', moodText); appendUpdate('moodLock', moodText); markRange(moodStart, moodEnd);
+        }
+
+        const faceHeading = headingIndex('顔方向性');
+        if (faceHeading >= 0) {
+          appendUpdate('faceReference', lines[faceHeading].replace(/^\s*顔方向性\s*[：:]\s*/, '')); consumed.add(faceHeading);
+        }
+        const bodyHeading = headingIndex('体型方向性');
+        if (bodyHeading >= 0) {
+          const value = lines[bodyHeading].replace(/^\s*体型方向性\s*[：:]\s*/, '');
+          appendUpdate('coreDefinition', value); appendUpdate('bodyLock', value); consumed.add(bodyHeading);
+        }
+
+        const sectionLines = (startLabel, endLabel) => {
+          const start = headingIndex(startLabel); if (start < 0) return [];
+          const end = endLabel ? headingIndex(endLabel) : lines.length;
+          const headerValue = lines[start].replace(new RegExp(`^\\s*${startLabel}\\s*[：:]\\s*`), '').trim();
+          const values = [headerValue, ...lines.slice(start + 1, end >= 0 ? end : lines.length).map(cleanListLine)].filter(Boolean);
+          markRange(start, end >= 0 ? end : lines.length);
+          return values;
+        };
+        const outfits = sectionLines('得意な衣装傾向', '避けたい方向');
+        if (outfits.length) appendUpdate('commonOutfits', outfits.join('\n'));
+        const avoid = sectionLines('避けたい方向', '撮影傾向');
+        if (avoid.length) appendUpdate('prohibitions', avoid.join('\n'));
+        const shooting = sectionLines('撮影傾向', null);
+        if (shooting.length) {
+          const moodLines = shooting.filter((line) => /実写寄り|自然光|スマホスナップ|ファッション誌|ストリートスナップ/.test(line));
+          const compositionLines = shooting.filter((line) => /構図|正面|斜め|振り返|全身|バストアップ|アップ|引き|視線|カメラ|アングル/.test(line) && !moodLines.includes(line));
+          const memoLines = shooting.filter((line) => !moodLines.includes(line) && !compositionLines.includes(line));
+          if (moodLines.length) appendUpdate('moodLock', moodLines.join('\n'));
+          if (compositionLines.length) appendUpdate('commonCompositions', compositionLines.join('\n'));
+          if (memoLines.length) appendUpdate('memo', memoLines.join('\n'));
+        }
+
+        if (faceStart >= 0 || bodyStart >= 0) appendUpdate('coreDefinition', '究極の砂時計体型。透明感と親しみやすさのある大人可愛い成人女性。');
+
+        const unclassified = lines.map((line, index) => ({ line:line.trim(), index }))
+          .filter(({ line, index }) => line && !consumed.has(index) && !/^[=＝\-ー_＿*＊#＃【】\s]+$/.test(line))
+          .map(({ line }) => line);
+        if (unclassified.length) appendUpdate('unclassifiedMemo', unclassified.join('\n'));
+
+        if (!updates.size) {
+          $('bulkResult').textContent = '認識できるラベルがありませんでした。入力例を確認してください。';
+          $('bulkResult').style.color = 'var(--danger)';
+          return;
+        }
+        updates.forEach((value, key) => { $(`char_${key}`).value = value; });
+        const name = $('char_name').value.trim();
+        $('characterEditorTitle').textContent = $('characterId').value
+          ? `${name || 'キャラ'}を編集（反映内容を確認）`
+          : `新しいキャラ${name ? `「${name}」` : ''}（反映内容を確認）`;
+        $('bulkResult').style.color = 'var(--success)';
+        const labelsByKey = Object.fromEntries(characterSchema.map((field) => [field.key, field.label]));
+        const appliedLabels = [...updates.keys()].map((key) => labelsByKey[key]);
+        $('bulkResult').innerHTML = `<div><b>反映：</b>${appliedLabels.map(escapeHtml).join('、')}</div><div style="margin-top:4px">${updates.size}項目を反映しました。内容を確認して「保存する」を押してください。</div><ul>${[...updates].map(([key, value]) => `<li><b>${escapeHtml(labelsByKey[key])}：</b>${escapeHtml(value)}</li>`).join('')}</ul>`;
+        $('bulkResult').scrollIntoView({ behavior:'smooth', block:'start' });
+        notify(`${updates.size}項目を一括反映しました`);
+      }
+
+      function clearCharacterBulkInput(message = '') {
+        $('bulkCharacterText').value = '';
+        $('bulkResult').textContent = message;
+        $('bulkResult').style.color = message ? 'var(--success)' : '';
+      }
+
+      function uniqueCharacterName(baseName) {
+        const names = new Set(characters.map((character) => character.name));
+        if (!names.has(baseName)) return baseName;
+        let suffix = 2;
+        while (names.has(`${baseName} (${suffix})`)) suffix++;
+        return `${baseName} (${suffix})`;
+      }
+
+      function exportCharacters() {
+        const data = {
+          format: 'character-prompt-builder-characters',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          characters
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `character-settings-${today()}.json`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        notify(`${characters.length}件のキャラ設定を書き出しました`);
+      }
+
+      function applyCharacterImport(mode) {
+        if (!pendingCharacterImport) return;
+        const activeId = $('characterId').value;
+        const usedIds = new Set(characters.map((character) => character.id));
+        let added = 0, overwritten = 0, renamed = 0, skipped = 0;
+        pendingCharacterImport.forEach((rawCharacter) => {
+          if (!rawCharacter || typeof rawCharacter !== 'object') { skipped++; return; }
+          const incoming = { ...rawCharacter, name:String(rawCharacter.name || '').trim() };
+          if (!incoming.name) { skipped++; return; }
+          const existingIndex = characters.findIndex((character) => character.name === incoming.name);
+          if (existingIndex >= 0) {
+            if (mode === 'overwrite') {
+              const existing = characters[existingIndex];
+              characters[existingIndex] = { ...existing, ...incoming, id:existing.id, name:existing.name, updatedAt:new Date().toISOString() };
+              overwritten++;
+            } else {
+              incoming.name = uniqueCharacterName(incoming.name);
+              incoming.id = uid();
+              characters.push(incoming); usedIds.add(incoming.id); renamed++;
+            }
+            return;
+          }
+          incoming.id = incoming.id && !usedIds.has(incoming.id) ? incoming.id : uid();
+          usedIds.add(incoming.id); characters.push(incoming); added++;
+        });
+        save(CHARACTER_KEY, characters);
+        pendingCharacterImport = null;
+        $('importConflictDialog').close();
+        if (activeId && characters.some((character) => character.id === activeId)) editCharacter(activeId); else renderCharacters();
+        updateCharacterSelects(); generatePrompt();
+        notify(`追加${added}件・上書き${overwritten}件・別名追加${renamed}件・スキップ${skipped}件`);
+      }
+
+      async function readCharacterImport(file) {
+        try {
+          const parsed = JSON.parse(await file.text());
+          const imported = Array.isArray(parsed) ? parsed : parsed?.characters;
+          if (!Array.isArray(imported)) throw new Error('キャラ配列がありません。');
+          pendingCharacterImport = imported;
+          const existingNames = new Set(characters.map((character) => character.name));
+          const seenNames = new Set();
+          const conflicts = imported.filter((character) => {
+            const name = String(character?.name || '').trim();
+            const conflict = name && (existingNames.has(name) || seenNames.has(name));
+            if (name) seenNames.add(name);
+            return conflict;
+          }).length;
+          if (!conflicts) { applyCharacterImport('overwrite'); return; }
+          $('importConflictMessage').textContent = `${imported.length}件中${conflicts}件が既存キャラまたは読み込みファイル内の名前と重複しています。重複キャラを上書きするか、「名前 (2)」の形式で別キャラとして追加するか選んでください。`;
+          $('importConflictDialog').showModal();
+        } catch (error) {
+          pendingCharacterImport = null;
+          alert(`キャラ設定を読み込めませんでした。\n${error.message || 'JSON形式を確認してください。'}`);
+        }
+      }
+
+      function switchTab(id) {
+        document.querySelectorAll('.tab-btn').forEach((button) => button.classList.toggle('active', button.dataset.tab === id));
+        document.querySelectorAll('.tab-view').forEach((view) => view.classList.toggle('active', view.id === id));
+        if (id === 'libraryView') renderExamples();
+      }
+
+      function splitSuggestions(value) {
+        return [...new Set(String(value || '').split(/[\n,、]+/).map((item) => item.trim()).filter(Boolean))];
+      }
+
+      function renderCharacters() {
+        const query = $('characterSearch').value.trim().toLowerCase();
+        const activeId = $('characterId').value;
+        const visible = characters.filter((character) => [character.name, character.coreDefinition, character.memo].some((value) => String(value || '').toLowerCase().includes(query)));
+        $('characterList').innerHTML = visible.length ? visible.map((character) => `<div class="character-card${character.id === activeId ? ' active' : ''}" data-id="${character.id}"><b>${escapeHtml(character.name)}</b><span>${escapeHtml([character.age, character.hairstyle, character.overallMood].filter(Boolean).join('・') || '設定を編集')}</span></div>`).join('')
+          : `<div class="empty-mini">${characters.length ? '一致するキャラがありません' : 'まだキャラがいません。<br>「キャラ追加」から登録してください。'}</div>`;
+        updateCharacterSelects();
+      }
+
+      function updateCharacterSelects() {
+        const builderValue = $('build_characterId').value;
+        $('build_characterId').innerHTML = '<option value="">キャラを選択してください</option>' + characters.map((character) => `<option value="${character.id}">${escapeHtml(character.name)}</option>`).join('');
+        if (characters.some((character) => character.id === builderValue)) $('build_characterId').value = builderValue;
+        const filterValue = $('exampleCharacterFilter').value;
+        const knownNames = [...new Set([...characters.map((character) => character.name), ...examples.map((example) => example.characterName)].filter(Boolean))];
+        $('exampleCharacterFilter').innerHTML = '<option value="all">すべてのキャラ</option>' + knownNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+        if (knownNames.includes(filterValue)) $('exampleCharacterFilter').value = filterValue;
+      }
+
+      function newCharacter() {
+        $('characterForm').reset(); $('characterId').value = '';
+        $('characterEditorTitle').textContent = '新しいキャラ'; $('deleteCharacterBtn').hidden = true; renderCharacters();
+        $('char_name').focus();
+      }
+
+      function editCharacter(id) {
+        const character = characters.find((item) => item.id === id); if (!character) return;
+        $('characterId').value = character.id;
+        characterSchema.forEach((field) => $(`char_${field.key}`).value = character[field.key] || '');
+        $('characterEditorTitle').textContent = `${character.name}を編集`; $('deleteCharacterBtn').hidden = false; renderCharacters();
+      }
+
+      function applyOutputModePreset() {
+        const mode = $('build_outputMode').value;
+        fixedSettingSchema.forEach((setting) => {
+          if (mode === 'short') $(`build_${setting.key}`).checked = setting.key === 'includeBaseIntro';
+          else if (mode === 'standard') $(`build_${setting.key}`).checked = setting.key !== 'includeProhibitions';
+          else $(`build_${setting.key}`).checked = true;
+        });
+      }
+
+      function promptSentences(...texts) {
+        const managementLabel = /^(髪色固定|髪型固定|顔方向性|顔の方向性|顔の基準説明|表情固定文|体型方向性|体型固定文|雰囲気固定文|ベース導入文)\s*[：:]/;
+        return texts.flatMap((text) => String(text || '').split(/[。\n]+/).map((sentence) => sentence.trim()).filter((sentence) => sentence && !managementLabel.test(sentence)));
+      }
+
+      function normalizePromptSentence(value) {
+        return String(value || '').replace(/[\s。、，,.：:「」『』（）()]/g, '').toLowerCase();
+      }
+
+      function mergePromptText(...texts) {
+        const sentences = promptSentences(...texts);
+        const adultSentences = sentences.filter((sentence) => sentence.includes('成人女性'));
+        const preferredAdult = adultSentences.sort((a, b) => (b.includes('成人女性向け') ? 1000 : 0) + b.length - ((a.includes('成人女性向け') ? 1000 : 0) + a.length))[0];
+        const seen = new Set();
+        const merged = sentences.filter((sentence) => {
+          if (sentence.includes('成人女性') && preferredAdult && sentence !== preferredAdult) return false;
+          const normalized = normalizePromptSentence(sentence);
+          if (!normalized || seen.has(normalized)) return false;
+          seen.add(normalized); return true;
+        });
+        return merged.length ? `${merged.join('。')}。` : '';
+      }
+
+      function hairDescription(character) {
+        const fieldValue = (value, label) => [...new Set(String(value || '').split(/[。\n]+/).map((part) => part.trim().replace(new RegExp(`^${label}\\s*[：:]\\s*`), '')).filter(Boolean))][0] || '';
+        const color = fieldValue(character.hairColor, '髪色固定');
+        const style = fieldValue(character.hairstyle, '髪型固定');
+        const naturalStyle = style && !/(ヘア|髪)$/.test(style) ? `${style}ヘア` : style;
+        return [color, naturalStyle].filter(Boolean).join('の');
+      }
+
+      function similarPromptText(first, second) {
+        const a = normalizePromptSentence(first); const b = normalizePromptSentence(second);
+        if (!a || !b) return false;
+        if (a.includes(b) || b.includes(a)) return true;
+        const bigrams = (value) => new Set([...value].slice(0, -1).map((char, index) => char + value[index + 1]));
+        const aPairs = bigrams(a); const bPairs = bigrams(b);
+        const overlap = [...aPairs].filter((pair) => bPairs.has(pair)).length;
+        return overlap / Math.max(1, Math.min(aPairs.size, bPairs.size)) >= .55;
+      }
+
+      function faceDescription(character, data, mode) {
+        const sources = data.includeFaceReference ? [character.faceReference, character.faceDirection] : [character.faceDirection];
+        const expressionPattern = /表情|微笑|笑顔|ほほえ|照れ|口元|からかうような/;
+        const referencePattern = /基準画像.*(?:優先|参照)|(?:優先|参照).*基準画像/;
+        const clauses = promptSentences(...sources).flatMap((sentence) => sentence.split(/[、,]/).map((part) => part.trim()).filter(Boolean))
+          .map((clause) => /(?:上品|親しみやすい|大人可愛い).*顔立ち$/.test(clause) ? clause.replace(/顔立ち$/, '雰囲気') : clause)
+          .filter((clause) => !referencePattern.test(clause))
+          .filter((clause) => !data.expression || !expressionPattern.test(clause));
+        const selected = [];
+        clauses.sort((a, b) => b.length - a.length).forEach((clause) => {
+          if (!selected.some((existing) => similarPromptText(existing, clause))) selected.push(clause);
+        });
+        if (mode === 'standard') {
+          const faceOrder = (clause) => /瞳|目元|目/.test(clause) ? 0 : /頬/.test(clause) ? 1 : /雰囲気|印象|大人可愛い|上品|親しみやすい/.test(clause) ? 90 : 10;
+          selected.sort((a, b) => faceOrder(a) - faceOrder(b));
+        }
+        return selected.slice(0, mode === 'standard' ? 6 : selected.length).join('、');
+      }
+
+      function faceReferenceInstruction(character, data, mode) {
+        if (mode === 'short' || !data.includeFaceReference) return '';
+        const source = promptSentences(character.faceReference, character.faceDirection).find((sentence) => /基準画像.*(?:優先|参照)|(?:優先|参照).*基準画像/.test(sentence));
+        if (!source) return '';
+        const name = String(character.name || '').trim();
+        return name ? `最新の${name}基準画像の顔方向性を優先する` : '最新の基準画像の顔方向性を優先する';
+      }
+
+      function bodyDescription(character, data, mode) {
+        if (mode === 'short' || !data.includeBodyLock) return '';
+        const rawBodySentences = promptSentences(character.bodyLock);
+        const hasDetailedBodySentence = rawBodySentences.some((sentence) => /細いウエスト|バスト|ヒップ|シルエット|腰から|太もも/.test(sentence));
+        const bodySentences = rawBodySentences.filter((sentence) => {
+          const normalized = normalizePromptSentence(sentence);
+          if (!normalized) return false;
+          if (hasDetailedBodySentence && /^(?:究極の)?砂時計体型$/.test(normalized)) return false;
+          return true;
+        });
+        const selected = [];
+        bodySentences.forEach((sentence) => {
+          if (!selected.some((existing) => similarPromptText(existing, sentence))) selected.push(sentence);
+        });
+        const numericDetails = mode === 'detailed'
+          ? promptSentences(character.bodyInfo).flatMap((sentence) => sentence.split(/[、,]/)).map((part) => part.trim()).filter((part) => /\d|カップ|バスト|肩幅|股下/.test(part))
+          : [];
+        return mergePromptText(...selected.slice(0, mode === 'standard' ? 5 : selected.length), numericDetails.join('、'));
+      }
+
+      function coreDescription(character, bodyEnabled) {
+        if (!bodyEnabled) return character.coreDefinition || '';
+        return mergePromptText(...promptSentences(character.coreDefinition).filter((sentence) => !/体型|砂時計|ウエスト|バスト|ヒップ|シルエット/.test(sentence)));
+      }
+
+      const shootingStylePattern = /実写寄り|実写スナップ|リアルな実写|自然光|スマホスナップ風|スマホスナップ|ファッション誌のストリートスナップ風/;
+
+      function withoutShootingStyle(text) {
+        const shootingTerms = /実写寄り(?:の質感)?|実写スナップ(?:風)?|リアルな実写(?:表現)?|柔らかい自然光|自然光|自然なスマホスナップ(?:風)?|スマホスナップ風|スマホスナップ|ファッション誌のストリートスナップ風/g;
+        const cleaned = promptSentences(text).map((sentence) => sentence.replace(shootingTerms, '').replace(/^[、,\s]*(?:の|で|による)\s*/, '').replace(/(?:の|で|な)\s*$/, '').replace(/[、,]{2,}/g, '、').replace(/^[、,\s]+|[、,\s]+$/g, '').trim()).filter(Boolean);
+        return mergePromptText(...cleaned);
+      }
+
+      function sanitizeBaseIntro(character, text) {
+        const faceClauses = promptSentences(character.faceDirection, character.faceReference).flatMap((sentence) => sentence.split(/[、,]/)).map((part) => normalizePromptSentence(part)).filter((part) => part.length >= 6);
+        return mergePromptText(...promptSentences(text).filter((sentence) => {
+          const normalized = normalizePromptSentence(sentence);
+          if (shootingStylePattern.test(sentence)) return false;
+          if (character.hairColor && normalized.includes(normalizePromptSentence(character.hairColor.replace(/^髪色固定\s*[：:]\s*/, '')))) return false;
+          if (/砂時計|細いウエスト|豊かなバスト|丸みのあるヒップ/.test(sentence)) return false;
+          return !faceClauses.some((clause) => normalized.includes(clause));
+        }));
+      }
+
+      function shootingQualityText(character, data, mode, normalExtra, negativeExtra) {
+        const sources = [character.moodLock, character.overallMood, data.mood, data.composition, data.extra].join('\n');
+        const light = data.light || (/自然光/.test(sources) ? '自然光' : '');
+        const lightSentence = data.timeOfDay && light && !light.includes(data.timeOfDay) ? `${data.timeOfDay}の${light}` : light || (mode !== 'short' ? data.timeOfDay : '');
+        const shootingStyles = [
+          /実写寄り|実写スナップ|リアルな実写/.test(sources) ? '実写寄りの質感' : '',
+          /スマホスナップ風|スマホスナップ/.test(sources) ? '自然なスマホスナップ風' : '',
+          /ファッション誌のストリートスナップ風/.test(sources) ? 'ファッション誌のストリートスナップ風' : ''
+        ].filter(Boolean).join('、');
+        const traits = [
+          mode !== 'short' && data.cameraDistance ? `カメラ距離は${data.cameraDistance}` : '',
+          lightSentence,
+          shootingStyles,
+          mode !== 'short' ? withoutShootingStyle(data.mood) : '',
+          ...(mode !== 'short' ? normalExtra.filter((sentence) => !shootingStylePattern.test(sentence)) : [])
+        ];
+        const prohibition = mode === 'detailed'
+          ? mergePromptText(data.includeProhibitions ? character.prohibitions : '', ...negativeExtra)
+          : '';
+        return mergePromptText(...traits, prohibition ? `禁止事項：${prohibition}` : '');
+      }
+
+      function dedupePrompt(sections) {
+        const allSentences = sections.flatMap((section, sectionIndex) => promptSentences(section).map((sentence) => ({ sentence, sectionIndex })));
+        const adultCandidates = allSentences.filter(({ sentence }) => sentence.includes('成人女性'));
+        const preferredAdult = adultCandidates.sort((a, b) => ((b.sentence.includes('成人女性向け') ? 1000 : 0) + b.sentence.length) - ((a.sentence.includes('成人女性向け') ? 1000 : 0) + a.sentence.length))[0];
+        const seen = new Set();
+        const seenSentences = [];
+        const keyPhrases = [/透明感のある大きな瞳/, /やわらかな頬/, /究極の砂時計体型/, /細いウエスト/, /豊かなバスト/, /丸みのあるヒップ/];
+        const output = sections.map(() => []);
+        allSentences.forEach((item) => {
+          if (item.sentence.includes('成人女性') && preferredAdult && item !== preferredAdult) return;
+          const normalized = normalizePromptSentence(item.sentence);
+          if (!normalized || seen.has(normalized)) return;
+          const overlaps = seenSentences.some((existing) => {
+            if (normalized.length >= 6 && existing.normalized.length >= 6 && (normalized.includes(existing.normalized) || existing.normalized.includes(normalized))) return true;
+            return keyPhrases.some((phrase) => phrase.test(item.sentence) && phrase.test(existing.sentence));
+          });
+          if (overlaps) return;
+          seen.add(normalized); seenSentences.push({ sentence:item.sentence, normalized }); output[item.sectionIndex].push(item.sentence);
+        });
+        return output.filter((sentences) => sentences.length).map((sentences) => `${sentences.join('。')}。`).join('\n\n');
+      }
+
+      function updateCharacterSuggestions() {
+        const character = characters.find((item) => item.id === $('build_characterId').value);
+        const setOptions = (id, values) => $(id).innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join('');
+        setOptions('outfitSuggestions', splitSuggestions(character?.commonOutfits));
+        setOptions('placeSuggestions', splitSuggestions(character?.commonPlaces));
+        setOptions('compositionSuggestions', splitSuggestions(character?.commonCompositions));
+      }
+
+      function applyBuilderBulkText() {
+        const text = $('bulkBuilderText').value.replace(/^\uFEFF/, '');
+        const updates = new Map();
+        const extraLines = [];
+        text.split(/\r?\n/).forEach((line) => {
+          const cleanLine = line.trim();
+          if (!cleanLine) return;
+          const match = cleanLine.match(/^([^：:]+?)\s*[：:]\s*(.*)$/);
+          const key = match ? builderLabelMap[match[1].trim()] : null;
+          if (key) updates.set(key, match[2].trim());
+          else extraLines.push(cleanLine);
+        });
+        if (extraLines.length) {
+          const currentExtra = updates.has('extra') ? updates.get('extra') : $('build_extra').value.trim();
+          const additions = extraLines.filter((line) => !currentExtra.includes(line));
+          updates.set('extra', [currentExtra, ...additions].filter(Boolean).join('\n'));
+        }
+        if (!updates.size) {
+          $('builderBulkResult').textContent = '反映できる内容がありませんでした。';
+          $('builderBulkResult').style.color = 'var(--danger)';
+          return;
+        }
+        updates.forEach((value, key) => { $(`build_${key}`).value = value; });
+        const labelsByKey = Object.fromEntries(builderSchema.map((field) => [field.key, field.label]));
+        const labels = [...updates.keys()].map((key) => labelsByKey[key]);
+        $('builderBulkResult').style.color = 'var(--success)';
+        $('builderBulkResult').innerHTML = `<div><b>反映：</b>${labels.map(escapeHtml).join('、')}</div><div style="margin-top:4px">個別欄で内容を確認できます。</div><ul>${[...updates].map(([key, value]) => `<li><b>${escapeHtml(labelsByKey[key])}：</b>${escapeHtml(value)}</li>`).join('')}</ul>`;
+        generatePrompt();
+        $('builderBulkResult').scrollIntoView({ behavior:'smooth', block:'start' });
+        notify(`${updates.size}項目を今回設定へ反映しました`);
+      }
+
+      function clearBuilderSceneInputs() {
+        builderBulkKeys.forEach((key) => { $(`build_${key}`).value = ''; });
+        $('bulkBuilderText').value = '';
+        $('builderBulkResult').textContent = '今回設定をクリアしました。入力欄はそのまま使用できます。';
+        $('builderBulkResult').style.color = 'var(--success)';
+        generatePrompt();
+      }
+
+      function clearAllBuilderInputs() {
+        clearBuilderSceneInputs();
+        $('build_characterId').value = '';
+        $('build_outputMode').value = 'standard';
+        applyOutputModePreset();
+        $('settingTemplateName').value = '';
+        $('settingTemplateSelect').value = '';
+        updateCharacterSuggestions();
+        generatePrompt();
+        $('builderBulkResult').textContent = 'プロンプト作成欄を全クリアしました。入力欄や保存済みデータは削除していません。';
+      }
+
+      function renderSettingTemplates() {
+        const selectedId = $('settingTemplateSelect').value;
+        $('settingTemplateSelect').innerHTML = '<option value="">保存済みテンプレを選択</option>' + settingTemplates
+          .slice().sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))
+          .map((template) => `<option value="${template.id}">${escapeHtml(template.name)}</option>`).join('');
+        if (settingTemplates.some((template) => template.id === selectedId)) $('settingTemplateSelect').value = selectedId;
+      }
+
+      function saveSettingTemplate() {
+        const name = $('settingTemplateName').value.trim();
+        if (!name) { notify('テンプレの保存名を入力してください'); $('settingTemplateName').focus(); return; }
+        const settings = Object.fromEntries(builderBulkKeys.map((key) => [key, $(`build_${key}`).value.trim()]));
+        const existingIndex = settingTemplates.findIndex((template) => template.name === name);
+        if (existingIndex >= 0) {
+          if (!confirm(`「${name}」を上書きしますか？`)) return;
+          settingTemplates[existingIndex] = { ...settingTemplates[existingIndex], settings, updatedAt:new Date().toISOString() };
+        } else {
+          settingTemplates.push({ id:uid(), name, settings, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
+        }
+        save(SETTING_TEMPLATE_KEY, settingTemplates); renderSettingTemplates();
+        const saved = settingTemplates.find((template) => template.name === name);
+        $('settingTemplateSelect').value = saved?.id || '';
+        notify(existingIndex >= 0 ? '今回設定テンプレを更新しました' : '今回設定テンプレを保存しました');
+      }
+
+      function loadSettingTemplate() {
+        const template = settingTemplates.find((item) => item.id === $('settingTemplateSelect').value);
+        if (!template) { notify('呼び出すテンプレを選択してください'); return; }
+        builderBulkKeys.forEach((key) => { $(`build_${key}`).value = template.settings?.[key] || ''; });
+        $('settingTemplateName').value = template.name;
+        generatePrompt();
+        document.querySelector('.builder-form').scrollIntoView({ behavior:'smooth', block:'start' });
+        notify(`「${template.name}」を今回設定へ反映しました`);
+      }
+
+      function deleteSettingTemplate() {
+        const template = settingTemplates.find((item) => item.id === $('settingTemplateSelect').value);
+        if (!template) { notify('削除するテンプレを選択してください'); return; }
+        if (!confirm(`「${template.name}」を削除しますか？`)) return;
+        settingTemplates = settingTemplates.filter((item) => item.id !== template.id);
+        save(SETTING_TEMPLATE_KEY, settingTemplates); renderSettingTemplates();
+        if ($('settingTemplateName').value.trim() === template.name) $('settingTemplateName').value = '';
+        notify('今回設定テンプレを削除しました');
+      }
+
+      function builderData() {
+        const data = Object.fromEntries(builderSchema.map((field) => [field.key, $(`build_${field.key}`).value.trim()]));
+        fixedSettingSchema.forEach((setting) => data[setting.key] = $(`build_${setting.key}`).checked);
+        return data;
+      }
+
+      function generatePrompt() {
+        const data = builderData();
+        const character = characters.find((item) => item.id === data.characterId);
+        if (!character) {
+          currentPrompt = '';
+          $('promptOutput').innerHTML = '<span class="prompt-placeholder">キャラを選択すると、固定設定と今回の入力を組み合わせたプロンプトがここに表示されます。</span>';
+          return;
+        }
+        const mode = data.outputMode || 'standard';
+        const bodyEnabled = mode !== 'short' && data.includeBodyLock && character.bodyLock;
+        const core = coreDescription(character, bodyEnabled);
+        const baseIntro = data.includeBaseIntro ? sanitizeBaseIntro(character, character.baseIntro) : '';
+        const identityFields = mode === 'detailed'
+          ? [character.name ? `キャラクター名は${character.name}` : '', character.age ? `年齢は${character.age}` : '', character.height ? `身長は${character.height}` : '', character.weight ? `体重は${character.weight}` : '']
+          : mode === 'standard' ? [character.name ? `キャラクター名は${character.name}` : '', character.age ? `年齢は${character.age}` : ''] : [];
+        const basicSection = mergePromptText(core, baseIntro, identityFields.filter(Boolean).join('、'));
+
+        const hair = hairDescription(character);
+        const face = mode === 'short' ? '' : faceDescription(character, data, mode);
+        const faceReference = faceReferenceInstruction(character, data, mode);
+        const characterMood = mode === 'short' ? '' : withoutShootingStyle(data.includeMoodLock ? character.moodLock : character.overallMood);
+        const faceSection = mergePromptText(
+          hair ? `髪は${hair}` : '', face ? `顔立ちは、${face}` : '',
+          data.expression ? `表情は${data.expression}` : '', characterMood, faceReference
+        );
+
+        const bodySection = bodyDescription(character, data, mode);
+        const outfitSection = data.outfit ? mergePromptText(
+          `衣装は${data.outfit}`,
+          mode === 'standard' ? '成人女性向けのきれいめファッションとして自然に見せる' : ''
+        ) : '';
+        const placeSection = data.place ? mergePromptText(
+          `場所は${data.place}`,
+          mode === 'standard' ? '現実の商業施設で撮影したような、自然光になじむ自然で落ち着いた背景にする' : ''
+        ) : '';
+        const compositionSection = withoutShootingStyle(mergePromptText(
+          data.composition ? `構図は${data.composition}` : '',
+          mode !== 'short' && data.pose ? `ポーズは${data.pose}` : ''
+        ));
+
+        const extraSentences = promptSentences(data.extra);
+        const negativeExtra = extraSentences.filter((sentence) => /避け|なし|しない|禁止|破綻|歪み/.test(sentence));
+        const normalExtra = mode === 'detailed' ? extraSentences.filter((sentence) => !negativeExtra.includes(sentence)) : extraSentences;
+        const qualitySection = shootingQualityText(character, data, mode, normalExtra, negativeExtra);
+
+        currentPrompt = dedupePrompt([
+          basicSection,
+          faceSection,
+          bodySection,
+          outfitSection,
+          placeSection,
+          compositionSection,
+          qualitySection
+        ]);
+        $('promptOutput').textContent = currentPrompt;
+      }
+
+      function renderExamples() {
+        const query = $('exampleSearch').value.trim().toLowerCase();
+        const characterName = $('exampleCharacterFilter').value;
+        const visible = examples.filter((example) => example.title.toLowerCase().includes(query) && (characterName === 'all' || example.characterName === characterName));
+        $('exampleList').innerHTML = visible.length ? visible.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))).map((example) => `<article class="panel example-card">
+          <div class="example-top"><div><h3>${escapeHtml(example.title)}</h3><div class="chips"><span class="chip">${escapeHtml(example.characterName || 'キャラ不明')}</span>${example.outfit ? `<span class="chip">${escapeHtml(example.outfit)}</span>` : ''}${example.place ? `<span class="chip">${escapeHtml(example.place)}</span>` : ''}${example.composition ? `<span class="chip">${escapeHtml(example.composition)}</span>` : ''}</div></div><span class="example-date">${escapeHtml(example.savedAt)}</span></div>
+          <div class="prompt-excerpt">${escapeHtml(example.prompt)}</div>
+          <div class="example-notes">${example.good ? `<div><b>良かった点：</b>${escapeHtml(example.good)}</div>` : ''}${example.reproducibility ? `<div><b>再現性：</b>${escapeHtml(example.reproducibility)}</div>` : ''}${example.improvement ? `<div><b>次回：</b>${escapeHtml(example.improvement)}</div>` : ''}</div>
+          <div class="card-actions"><button class="btn btn-small recreate-btn" type="button" data-id="${example.id}">この成功例をベースに再作成</button><button class="btn btn-small btn-danger delete-example-btn" type="button" data-id="${example.id}">削除</button></div>
+        </article>`).join('') : '<div class="panel empty-state"><b>成功例はまだありません</b>プロンプト作成画面から保存できます。</div>';
+      }
+
+      async function copyText(text, message) {
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error();
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const area = document.createElement('textarea'); area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+          document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+        }
+        notify(message);
+      }
+
+      renderSchema(); applyOutputModePreset(); renderCharacters(); newCharacter(); renderExamples(); renderSettingTemplates(); generatePrompt();
+
+      document.querySelectorAll('.tab-btn').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+      $('insertSampleBtn').addEventListener('click', () => {
+        $('bulkCharacterText').value = characterSample;
+        $('bulkResult').textContent = 'サンプルを挿入しました。「一括反映」を押すとフォームへ入力されます。';
+        $('bulkResult').style.color = 'var(--muted)';
+        $('bulkCharacterText').focus();
+      });
+      $('applyBulkBtn').addEventListener('click', applyBulkCharacterText);
+      $('clearBulkBtn').addEventListener('click', () => {
+        clearCharacterBulkInput('一括入力欄をクリアしました。');
+        $('bulkCharacterText').focus();
+        notify('一括入力欄をクリアしました。');
+      });
+      $('insertBuilderSampleBtn').addEventListener('click', () => {
+        $('bulkBuilderText').value = builderSample;
+        $('builderBulkResult').textContent = 'ユナの駅ビル待ち合わせサンプルを挿入しました。「一括反映」を押してください。';
+        $('builderBulkResult').style.color = 'var(--muted)';
+        $('bulkBuilderText').focus();
+      });
+      $('applyBuilderBulkBtn').addEventListener('click', applyBuilderBulkText);
+      $('clearBuilderSettingsBtn').addEventListener('click', () => {
+        clearBuilderSceneInputs();
+        $('build_outfit').focus();
+        notify('今回設定をクリアしました');
+      });
+      $('clearBuilderAllBtn').addEventListener('click', () => {
+        clearAllBuilderInputs();
+        $('build_characterId').focus();
+        notify('プロンプト作成欄を全クリアしました');
+      });
+      $('saveSettingTemplateBtn').addEventListener('click', saveSettingTemplate);
+      $('loadSettingTemplateBtn').addEventListener('click', loadSettingTemplate);
+      $('deleteSettingTemplateBtn').addEventListener('click', deleteSettingTemplate);
+      $('settingTemplateSelect').addEventListener('change', () => {
+        const template = settingTemplates.find((item) => item.id === $('settingTemplateSelect').value);
+        if (template) $('settingTemplateName').value = template.name;
+      });
+      $('exportCharactersBtn').addEventListener('click', exportCharacters);
+      $('importCharactersBtn').addEventListener('click', () => $('importCharactersFile').click());
+      $('importCharactersFile').addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (file) await readCharacterImport(file);
+        event.target.value = '';
+      });
+      const cancelCharacterImport = () => { pendingCharacterImport = null; $('importConflictDialog').close(); };
+      $('closeImportConflict').addEventListener('click', cancelCharacterImport);
+      $('cancelImportConflict').addEventListener('click', cancelCharacterImport);
+      $('overwriteImportBtn').addEventListener('click', () => applyCharacterImport('overwrite'));
+      $('renameImportBtn').addEventListener('click', () => applyCharacterImport('rename'));
+      $('importConflictDialog').addEventListener('click', (event) => { if (event.target === $('importConflictDialog')) cancelCharacterImport(); });
+      $('addCharacterBtn').addEventListener('click', newCharacter);
+      $('characterSearch').addEventListener('input', renderCharacters);
+      $('characterList').addEventListener('click', (event) => { const card = event.target.closest('[data-id]'); if (card) editCharacter(card.dataset.id); });
+      $('characterForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const saveAndNext = event.submitter?.id === 'saveAndNextCharacterBtn';
+        const id = $('characterId').value || uid();
+        const existing = characters.find((character) => character.id === id) || {};
+        const character = { ...existing, id, updatedAt: new Date().toISOString() };
+        characterSchema.forEach((field) => character[field.key] = $(`char_${field.key}`).value.trim());
+        const index = characters.findIndex((item) => item.id === id);
+        if (index >= 0) characters[index] = character; else characters.push(character);
+        save(CHARACTER_KEY, characters);
+        if (saveAndNext) {
+          newCharacter(); updateCharacterSelects(); generatePrompt();
+          clearCharacterBulkInput('保存しました。次のキャラを登録できます。');
+          $('char_name').focus();
+          notify('次のキャラを登録できます');
+        } else {
+          editCharacter(id); updateCharacterSelects(); generatePrompt();
+          clearCharacterBulkInput('保存しました。一括入力欄をクリアしました。');
+          notify('保存しました。一括入力欄をクリアしました。');
+        }
+      });
+      $('deleteCharacterBtn').addEventListener('click', () => {
+        const id = $('characterId').value; const character = characters.find((item) => item.id === id);
+        if (!character || !confirm(`「${character.name}」を削除しますか？\n保存済みの成功例は残ります。`)) return;
+        characters = characters.filter((item) => item.id !== id); save(CHARACTER_KEY, characters); newCharacter(); updateCharacterSelects(); generatePrompt(); notify('キャラを削除しました');
+      });
+      $('copyPromptBtn').addEventListener('click', () => currentPrompt ? copyText(currentPrompt, 'プロンプトをコピーしました') : notify('先にキャラを選択してください'));
+      $('saveExampleBtn').addEventListener('click', () => {
+        const data = builderData();
+        if (!data.characterId || !currentPrompt) { notify('先にキャラを選択してください'); return; }
+        $('saveExampleForm').reset();
+        const character = characters.find((item) => item.id === data.characterId);
+        $('exampleTitle').value = `${character.name}・${data.place || data.outfit || 'プロンプト'}成功例`;
+        $('saveExampleDialog').showModal(); $('exampleTitle').focus();
+      });
+      $('saveExampleForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = builderData(); const character = characters.find((item) => item.id === data.characterId);
+        if (!character || !currentPrompt) { $('saveExampleDialog').close(); return; }
+        examples.push({ id:uid(), title:$('exampleTitle').value.trim(), characterId:character.id, characterName:character.name,
+          outfit:data.outfit, place:data.place, composition:data.composition, builderData:data, prompt:currentPrompt,
+          good:$('exampleGood').value.trim(), reproducibility:$('exampleRepro').value.trim(), improvement:$('exampleImprove').value.trim(), savedAt:today() });
+        save(EXAMPLE_KEY, examples); $('saveExampleDialog').close(); updateCharacterSelects(); renderExamples(); notify('成功例を保存しました');
+      });
+      const closeExampleDialog = () => $('saveExampleDialog').close();
+      $('closeExampleDialog').addEventListener('click', closeExampleDialog); $('cancelExampleDialog').addEventListener('click', closeExampleDialog);
+      $('saveExampleDialog').addEventListener('click', (event) => { if (event.target === $('saveExampleDialog')) closeExampleDialog(); });
+      $('exampleSearch').addEventListener('input', renderExamples); $('exampleCharacterFilter').addEventListener('change', renderExamples);
+      $('exampleList').addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-id]'); if (!button) return;
+        const example = examples.find((item) => item.id === button.dataset.id); if (!example) return;
+        if (button.classList.contains('delete-example-btn')) {
+          if (!confirm(`「${example.title}」を削除しますか？`)) return;
+          examples = examples.filter((item) => item.id !== example.id); save(EXAMPLE_KEY, examples); renderExamples(); updateCharacterSelects(); notify('成功例を削除しました'); return;
+        }
+        const characterExists = characters.some((character) => character.id === example.characterId);
+        if (!characterExists) { alert('対象キャラが削除されています。キャラを再登録してからお試しください。'); return; }
+        const savedBuilder = example.builderData || {};
+        builderSchema.forEach((field) => $(`build_${field.key}`).value = savedBuilder[field.key] || (field.key === 'outputMode' ? 'standard' : ''));
+        const hasSavedFixedSettings = fixedSettingSchema.some((setting) => Object.prototype.hasOwnProperty.call(savedBuilder, setting.key));
+        if (hasSavedFixedSettings) fixedSettingSchema.forEach((setting) => $(`build_${setting.key}`).checked = savedBuilder[setting.key] !== false);
+        else applyOutputModePreset();
+        updateCharacterSuggestions(); generatePrompt(); switchTab('builderView'); notify('成功例の設定を読み込みました');
+      });
+    })();
+  </script>
+</body>
+</html>

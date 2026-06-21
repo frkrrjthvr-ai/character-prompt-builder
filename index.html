@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TikLog - TikTok投稿管理</title>
+  <style>
+    :root {
+      --bg: #f3f3f1;
+      --surface: #ffffff;
+      --ink: #171716;
+      --muted: #73736e;
+      --line: #deded9;
+      --accent: #ff3b5c;
+      --accent-soft: #ffe8ed;
+      --dark: #20201e;
+      --success: #138a61;
+      --shadow: 0 12px 35px rgba(28, 28, 24, .08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 90% 3%, rgba(37, 244, 238, .16), transparent 24rem),
+        radial-gradient(circle at 5% 15%, rgba(255, 59, 92, .12), transparent 22rem),
+        var(--bg);
+      font-family: Inter, "Noto Sans JP", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    .app { max-width: 1480px; margin: 0 auto; padding: 28px; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .logo {
+      width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+      background: var(--dark); color: white; font-weight: 900; font-size: 20px;
+      box-shadow: 5px 5px 0 #25f4ee, -3px -3px 0 var(--accent);
+    }
+    h1 { margin: 0; font-size: clamp(24px, 3vw, 36px); letter-spacing: -.04em; }
+    .eyebrow { margin: 0 0 3px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .header-actions { display: flex; gap: 10px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 22px; padding: 5px; width: fit-content; background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 14px; }
+    .tab-btn { border: 0; border-radius: 10px; padding: 10px 16px; background: transparent; color: var(--muted); font-weight: 800; }
+    .tab-btn.active { background: var(--dark); color: white; box-shadow: 0 5px 14px rgba(0,0,0,.12); }
+    .tab-view { display: none; }
+    .tab-view.active { display: block; }
+
+    .btn {
+      border: 1px solid var(--line); border-radius: 12px; padding: 11px 16px;
+      background: var(--surface); color: var(--ink); font-weight: 750;
+      transition: transform .18s, box-shadow .18s, background .18s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.08); }
+    .btn-primary { background: var(--dark); color: white; border-color: var(--dark); }
+    .btn-accent { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-danger { color: #bd1734; background: #fff4f6; border-color: #ffd4dc; }
+    .icon-btn { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border-radius: 10px; }
+
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 22px; }
+    .stat {
+      background: rgba(255,255,255,.82); border: 1px solid rgba(255,255,255,.8);
+      border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+    }
+    .stat-label { color: var(--muted); font-size: 12px; font-weight: 800; margin-bottom: 10px; }
+    .stat-value { font-size: clamp(22px, 2.4vw, 32px); font-weight: 850; letter-spacing: -.04em; }
+    .stat-note { color: var(--muted); font-size: 11px; margin-top: 6px; }
+    .stat.highlight { background: var(--dark); color: white; border-color: var(--dark); }
+    .stat.highlight .stat-label, .stat.highlight .stat-note { color: #aaa; }
+
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      padding: 18px; border-bottom: 1px solid var(--line);
+    }
+    .toolbar-left { display: flex; flex: 1; gap: 10px; }
+    .search { position: relative; flex: 1; max-width: 430px; }
+    .search span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+    input, textarea, select {
+      width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 11px 12px;
+      background: #fbfbfa; color: var(--ink); outline: none; transition: border-color .18s, box-shadow .18s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--dark); box-shadow: 0 0 0 3px rgba(32,32,30,.08); }
+    .search input { padding-left: 40px; }
+    .toolbar select { width: 180px; }
+    .count { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .import-result {
+      display: none; margin: 14px 18px 0; padding: 11px 14px; border-radius: 11px;
+      background: #eaf8f3; color: #116849; font-size: 13px; font-weight: 750;
+    }
+    .import-result.show { display: block; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1180px; }
+    th { padding: 13px 14px; text-align: left; color: var(--muted); font-size: 11px; letter-spacing: .05em; white-space: nowrap; border-bottom: 1px solid var(--line); background: #fafaf8; }
+    td { padding: 15px 14px; border-bottom: 1px solid #ecece8; font-size: 13px; vertical-align: middle; }
+    tbody tr { transition: background .15s; }
+    tbody tr:hover { background: #fafaf8; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .post-cell { max-width: 260px; }
+    .post-title { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .auto-labels { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .auto-label { display: inline-block; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 850; line-height: 1.2; }
+    .label-views { color: #086863; background: #dff8f5; }
+    .label-like { color: #a01835; background: #ffe6ec; }
+    .label-save { color: #705300; background: #fff1bd; }
+    .label-complete { color: #49349b; background: #eeeaff; }
+    .label-retain { color: #345b8e; background: #e6f0ff; }
+    .label-product { color: #7a3c00; background: #ffead1; }
+    .label-prompt { color: #145f48; background: #dff6ed; }
+    .date { color: var(--muted); white-space: nowrap; }
+    .theme-badge { display: inline-block; max-width: 140px; padding: 5px 9px; border-radius: 999px; background: #efefec; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rate { font-weight: 800; }
+    .rate.good { color: var(--success); }
+    .actions { display: flex; gap: 6px; }
+    .template-btn { width: auto; padding: 0 10px; white-space: nowrap; color: #49349b; background: #f2efff; border-color: #ddd5ff; font-size: 11px; }
+    .empty { display: none; padding: 64px 24px; text-align: center; color: var(--muted); }
+    .empty.show { display: block; }
+    .empty strong { display: block; color: var(--ink); font-size: 18px; margin-bottom: 7px; }
+
+    .dashboard-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+    .dashboard-head h2 { margin: 0 0 6px; font-size: clamp(23px, 3vw, 32px); letter-spacing: -.035em; }
+    .dashboard-head p { margin: 0; color: var(--muted); font-size: 13px; }
+    .analysis-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .analysis-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); min-width: 0; }
+    .analysis-card.wide { grid-column: 1 / -1; }
+    .analysis-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+    .analysis-title h3 { margin: 0; font-size: 16px; }
+    .analysis-title span { color: var(--muted); font-size: 11px; }
+    .rank-list { display: grid; gap: 8px; }
+    .rank-item { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: #f7f7f5; }
+    .rank-no { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: var(--dark); color: white; font-size: 11px; font-weight: 850; }
+    .rank-name { min-width: 0; font-size: 12px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-meta { margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 500; }
+    .rank-value { font-size: 13px; font-weight: 850; white-space: nowrap; }
+    .analysis-empty { padding: 25px 10px; color: var(--muted); text-align: center; font-size: 12px; }
+    .theme-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .theme-card { padding: 14px; border-radius: 14px; background: linear-gradient(145deg, #f7f7f5, #fff); border: 1px solid #ecece7; }
+    .theme-card b { display: block; margin-bottom: 7px; font-size: 13px; overflow-wrap: anywhere; }
+    .theme-card span { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .period-switch { display: flex; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .period-btn { border: 0; border-radius: 8px; padding: 8px 13px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; }
+    .period-btn.active { background: var(--dark); color: white; }
+    .weekly-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+    .weekly-stat { padding: 16px; border-radius: 15px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .weekly-stat small { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11px; font-weight: 800; }
+    .weekly-stat b { font-size: 23px; letter-spacing: -.035em; }
+    .improvement-list { display: grid; gap: 9px; }
+    .improvement-item { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; padding: 12px; border-radius: 12px; background: #f7f7f5; font-size: 12px; line-height: 1.65; }
+    .improvement-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; color: white; background: var(--accent); font-weight: 900; }
+
+    dialog {
+      width: min(900px, calc(100% - 32px)); border: 0; border-radius: 22px; padding: 0;
+      box-shadow: 0 28px 90px rgba(0,0,0,.25); color: var(--ink);
+    }
+    dialog::backdrop { background: rgba(20,20,18,.58); backdrop-filter: blur(5px); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 22px 24px; border-bottom: 1px solid var(--line); }
+    .modal-head h2 { margin: 0; font-size: 21px; }
+    .close { border: 0; background: #eee; border-radius: 50%; width: 34px; height: 34px; font-size: 20px; }
+    form { padding: 22px 24px 24px; }
+    .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    .field.wide { grid-column: span 2; }
+    .field.full { grid-column: 1 / -1; }
+    .check-option { min-height: 43px; display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fbfbfa; color: var(--ink); }
+    .check-option input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
+    label { font-size: 12px; font-weight: 800; color: #555550; }
+    label .req { color: var(--accent); }
+    textarea { resize: vertical; min-height: 90px; }
+    .live-rates { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 3px; }
+    .live-rate { padding: 12px; border-radius: 12px; background: #f3f3f0; }
+    .live-rate small { display: block; color: var(--muted); margin-bottom: 4px; }
+    .live-rate b { font-size: 18px; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .template-content { padding: 20px 24px 24px; }
+    .template-source { margin: 0 0 16px; padding: 10px 12px; border-radius: 10px; background: #f3f3f0; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+    .template-item { padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fbfbfa; }
+    .template-item.wide { grid-column: 1 / -1; }
+    .template-item small { display: block; margin-bottom: 7px; color: var(--accent); font-size: 10px; font-weight: 850; letter-spacing: .04em; }
+    .template-item div { font-size: 13px; line-height: 1.7; white-space: pre-line; }
+    .template-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .toast {
+      position: fixed; right: 24px; bottom: 24px; z-index: 10; padding: 13px 17px;
+      background: var(--dark); color: white; border-radius: 12px; box-shadow: var(--shadow);
+      opacity: 0; transform: translateY(16px); pointer-events: none; transition: .25s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .file-input { display: none; }
+
+    @media (max-width: 960px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stats .stat:first-child { grid-column: span 2; }
+      .form-grid { grid-template-columns: repeat(2, 1fr); }
+      .live-rates { grid-template-columns: repeat(2, 1fr); }
+      .theme-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .weekly-stats { grid-template-columns: repeat(2, 1fr); }
+      .weekly-stat:first-child { grid-column: span 2; }
+    }
+    @media (max-width: 640px) {
+      .app { padding: 18px 14px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .header-actions { width: 100%; flex-wrap: wrap; }
+      .header-actions #exportBtn, .header-actions #importBtn { display: none; }
+      .header-actions #csvImportBtn { flex: 1; }
+      .stats { gap: 9px; }
+      .stat { padding: 14px; }
+      .toolbar { align-items: stretch; flex-direction: column; }
+      .toolbar-left { flex-direction: column; }
+      .search, .toolbar select { max-width: none; width: 100%; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.wide, .field.full { grid-column: auto; }
+      .live-rates { grid-template-columns: repeat(2, 1fr); }
+      form, .modal-head { padding-left: 18px; padding-right: 18px; }
+      .template-content { padding-left: 18px; padding-right: 18px; }
+      .template-grid { grid-template-columns: 1fr; }
+      .template-item.wide { grid-column: auto; }
+      .tabs { width: 100%; }
+      .tab-btn { flex: 1; padding: 10px 8px; }
+      .analysis-grid { grid-template-columns: 1fr; }
+      .analysis-card.wide { grid-column: auto; }
+      .theme-list { grid-template-columns: 1fr; }
+      .dashboard-head { align-items: stretch; flex-direction: column; }
+      .period-switch { width: 100%; }
+      .period-btn { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">T</div>
+        <div><p class="eyebrow">Content Analytics</p><h1>TikLog</h1></div>
+      </div>
+      <div class="header-actions">
+        <button class="btn" id="exportBtn" type="button">書き出し</button>
+        <button class="btn" id="importBtn" type="button">読み込み</button>
+        <input class="file-input" id="importFile" type="file" accept="application/json">
+        <button class="btn" id="csvImportBtn" type="button">TikTokデータ読み込み</button>
+        <input class="file-input" id="csvImportFile" type="file" accept=".csv,text/csv">
+        <button class="btn btn-accent" id="addBtn" type="button">＋ 投稿を追加</button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="画面切り替え">
+      <button class="tab-btn active" type="button" data-tab="postsView">投稿管理</button>
+      <button class="tab-btn" type="button" data-tab="dashboardView">分析ダッシュボード</button>
+      <button class="tab-btn" type="button" data-tab="weeklyView">週次振り返り</button>
+    </nav>
+
+    <div class="tab-view active" id="postsView">
+    <section class="stats" aria-label="サマリー">
+      <article class="stat highlight"><div class="stat-label">TOTAL VIEWS</div><div class="stat-value" id="totalViews">0</div><div class="stat-note" id="postSummary">0件の投稿</div></article>
+      <article class="stat"><div class="stat-label">平均保存率</div><div class="stat-value" id="avgSaveRate">0.00%</div><div class="stat-note">保存数 ÷ 再生数</div></article>
+      <article class="stat"><div class="stat-label">平均いいね率</div><div class="stat-value" id="avgLikeRate">0.00%</div><div class="stat-note">いいね数 ÷ 再生数</div></article>
+      <article class="stat"><div class="stat-label">平均フォロー率</div><div class="stat-value" id="avgFollowRate">0.00%</div><div class="stat-note">フォロー増加 ÷ 再生数</div></article>
+      <article class="stat"><div class="stat-label">平均フル視聴率</div><div class="stat-value" id="avgFullWatchRate">0.00%</div><div class="stat-note">投稿ごとのフル視聴率平均</div></article>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="タイトル・テーマ・メモを検索"></div>
+          <select id="sortSelect" aria-label="並び替え">
+            <option value="date-desc">投稿日が新しい順</option>
+            <option value="date-asc">投稿日が古い順</option>
+            <option value="views-desc">再生数順（多い順）</option>
+            <option value="save-desc">保存率が高い順</option>
+            <option value="like-desc">いいね率順（高い順）</option>
+            <option value="watch-desc">平均視聴時間順（長い順）</option>
+            <option value="full-watch-desc">フル視聴率順（高い順）</option>
+          </select>
+          <select id="productFilter" aria-label="商品化候補で絞り込み">
+            <option value="all">商品化候補：すべて</option>
+            <option value="yes">商品化候補：ありのみ</option>
+          </select>
+        </div>
+        <div class="count" id="resultCount">0件を表示</div>
+      </div>
+      <div class="import-result" id="importResult" role="status"></div>
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead><tr><th>投稿</th><th>投稿日</th><th>テーマ</th><th>再生数</th><th>コメント</th><th>動画尺</th><th>平均視聴</th><th>視聴維持率</th><th>フル視聴率</th><th>保存率</th><th>いいね率</th><th>フォロー率</th><th></th></tr></thead>
+          <tbody id="postTable"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="emptyState"><strong>まだ投稿がありません</strong><span>「投稿を追加」から最初のデータを登録しましょう。</span></div>
+    </section>
+    </div>
+
+    <div class="tab-view" id="dashboardView">
+      <div class="dashboard-head">
+        <div><h2>分析ダッシュボード</h2><p id="analysisSummary">投稿データから次の一手を整理します。</p></div>
+      </div>
+      <div class="analysis-grid">
+        <article class="analysis-card"><div class="analysis-title"><h3>保存率トップ5</h3><span>保存数 ÷ 再生数</span></div><div class="rank-list" id="topSave"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>フォロー率トップ5</h3><span>フォロー増加 ÷ 再生数</span></div><div class="rank-list" id="topFollow"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>フル視聴率トップ5</h3><span>完走されている投稿</span></div><div class="rank-list" id="topFull"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>再生数トップ5</h3><span>リーチ上位</span></div><div class="rank-list" id="topViews"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>隠れた保存優良投稿</h3><span>平均未満の再生 × 高保存率</span></div><div class="rank-list" id="hiddenGems"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>再生先行の改善候補</h3><span>高再生 × 低保存率</span></div><div class="rank-list" id="saveWarnings"></div></article>
+        <article class="analysis-card wide"><div class="analysis-title"><h3>次に検証すべき投稿テーマ候補</h3><span>テーマ別の実績から算出</span></div><div class="theme-list" id="themeCandidates"></div></article>
+      </div>
+    </div>
+
+    <div class="tab-view" id="weeklyView">
+      <div class="dashboard-head">
+        <div><h2>週次振り返り</h2><p id="weeklyRange">対象期間の実績を振り返ります。</p></div>
+        <div class="period-switch" aria-label="集計期間">
+          <button class="period-btn active" type="button" data-period="this">今週</button>
+          <button class="period-btn" type="button" data-period="last">先週</button>
+          <button class="period-btn" type="button" data-period="all">全期間</button>
+        </div>
+      </div>
+      <section class="weekly-stats" aria-label="期間サマリー">
+        <article class="weekly-stat"><small>投稿数</small><b id="weeklyPostCount">0</b></article>
+        <article class="weekly-stat"><small>平均再生数</small><b id="weeklyAvgViews">0</b></article>
+        <article class="weekly-stat"><small>平均保存率</small><b id="weeklyAvgSave">0.00%</b></article>
+        <article class="weekly-stat"><small>平均フォロー率</small><b id="weeklyAvgFollow">0.00%</b></article>
+        <article class="weekly-stat"><small>平均フル視聴率</small><b id="weeklyAvgFull">0.00%</b></article>
+      </section>
+      <div class="analysis-grid">
+        <article class="analysis-card"><div class="analysis-title"><h3>保存率トップ3</h3><span>対象期間</span></div><div class="rank-list" id="weeklyTopSave"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>フォロー率トップ3</h3><span>対象期間</span></div><div class="rank-list" id="weeklyTopFollow"></div></article>
+        <article class="analysis-card"><div class="analysis-title"><h3>フル視聴率トップ3</h3><span>対象期間</span></div><div class="rank-list" id="weeklyTopFull"></div></article>
+        <article class="analysis-card wide"><div class="analysis-title"><h3>次週の改善案</h3><span>実績に基づく自動提案</span></div><div class="improvement-list" id="weeklyImprovements"></div></article>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="postDialog">
+    <div class="modal-head"><h2 id="modalTitle">投稿を追加</h2><button class="close" id="closeBtn" type="button" aria-label="閉じる">×</button></div>
+    <form id="postForm">
+      <input type="hidden" id="postId">
+      <div class="form-grid">
+        <div class="field wide"><label for="title">投稿タイトル <span class="req">*</span></label><input id="title" required maxlength="100" placeholder="例：朝の5分ルーティン"></div>
+        <div class="field"><label for="postDate">投稿日 <span class="req">*</span></label><input id="postDate" type="date" required></div>
+        <div class="field"><label for="theme">テーマ</label><input id="theme" maxlength="50" placeholder="例：ライフスタイル"></div>
+        <div class="field"><label for="views">再生数</label><input id="views" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="likes">いいね数</label><input id="likes" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="comments">コメント数</label><input id="comments" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="saves">保存数</label><input id="saves" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="follows">フォロー増加数</label><input id="follows" type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="videoDuration">動画尺（秒）</label><input id="videoDuration" type="number" min="0" step="0.1" value="0" placeholder="例：30.0"></div>
+        <div class="field"><label for="avgWatchTime">平均視聴時間（秒）</label><input id="avgWatchTime" type="number" min="0" step="0.1" value="0"></div>
+        <div class="field"><label for="fullWatchRate">フル視聴率（%）</label><input id="fullWatchRate" type="number" min="0" max="100" step="0.1" value="0" placeholder="例：25.0"></div>
+        <div class="field"><label for="productCandidate">商品化候補</label><select id="productCandidate"><option value="hold">保留</option><option value="yes">あり</option><option value="no">なし</option></select></div>
+        <div class="field"><label for="productCategory">商品カテゴリ</label><select id="productCategory"><option value="">未設定</option><option value="メール">メール</option><option value="Excel">Excel</option><option value="議事録">議事録</option><option value="資料作成">資料作成</option><option value="要約">要約</option><option value="敬語変換">敬語変換</option><option value="その他">その他</option></select></div>
+        <div class="field"><label for="promptCollectionCandidate">プロンプト集候補</label><label class="check-option"><input id="promptCollectionCandidate" type="checkbox">プロンプト集に入れる候補にする</label></div>
+        <div class="live-rates">
+          <div class="live-rate"><small>保存率</small><b id="liveSaveRate">0.00%</b></div>
+          <div class="live-rate"><small>いいね率</small><b id="liveLikeRate">0.00%</b></div>
+          <div class="live-rate"><small>フォロー率</small><b id="liveFollowRate">0.00%</b></div>
+          <div class="live-rate"><small>視聴維持率</small><b id="liveRetentionRate">0.00%</b></div>
+        </div>
+        <div class="field full"><label for="memo">メモ</label><textarea id="memo" maxlength="1000" placeholder="投稿の狙い、反応、次回の改善点など"></textarea></div>
+        <div class="field full"><label for="productMemo">将来の商品メモ</label><textarea id="productMemo" maxlength="1500" placeholder="商品にする場合の内容、対象者、価格案、追加したい素材など"></textarea></div>
+      </div>
+      <div class="form-actions"><button class="btn" id="cancelBtn" type="button">キャンセル</button><button class="btn btn-primary" type="submit">保存する</button></div>
+    </form>
+  </dialog>
+  <dialog id="templateDialog">
+    <div class="modal-head"><h2>投稿テンプレート</h2><button class="close" id="templateCloseBtn" type="button" aria-label="閉じる">×</button></div>
+    <div class="template-content">
+      <p class="template-source" id="templateSource"></p>
+      <div class="template-grid" id="templateOutput"></div>
+      <div class="template-footer"><button class="btn" id="templateCancelBtn" type="button">閉じる</button><button class="btn btn-primary" id="copyTemplateBtn" type="button">内容をコピー</button></div>
+    </div>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    (() => {
+      'use strict';
+      const STORAGE_KEY = 'tiklog_posts_v1';
+      const $ = (id) => document.getElementById(id);
+      const number = (value) => Math.max(0, Number(value) || 0);
+      const rate = (value, views) => views > 0 ? (value / views) * 100 : 0;
+      const percent = (value) => `${value.toFixed(2)}%`;
+      const formatNumber = (value) => new Intl.NumberFormat('ja-JP').format(value);
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+      const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+
+      let posts = loadPosts();
+      let weeklyPeriod = 'this';
+      let currentTemplate = null;
+
+      function loadPosts() {
+        try {
+          const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+          return Array.isArray(stored) ? stored : [];
+        } catch { return []; }
+      }
+
+      function savePosts() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
+      }
+
+      function metrics(post) {
+        return {
+          save: rate(number(post.saves), number(post.views)),
+          like: rate(number(post.likes), number(post.views)),
+          follow: rate(number(post.follows), number(post.views))
+        };
+      }
+
+      function fullWatchRate(post) {
+        return Math.min(100, number(post.fullWatchRate));
+      }
+
+      function retentionRate(post) {
+        return rate(number(post.avgWatchTime), number(post.videoDuration));
+      }
+
+      function renderRankList(id, items, emptyMessage) {
+        $(id).innerHTML = items.length ? items.map((item, index) => `<div class="rank-item">
+          <div class="rank-no">${index + 1}</div>
+          <div><div class="rank-name" title="${escapeHtml(item.post.title)}">${escapeHtml(item.post.title)}</div><div class="rank-meta">${escapeHtml(item.meta)}</div></div>
+          <div class="rank-value">${escapeHtml(item.value)}</div>
+        </div>`).join('') : `<div class="analysis-empty">${escapeHtml(emptyMessage)}</div>`;
+      }
+
+      function postThemes(post) {
+        const explicit = String(post.theme || '').trim();
+        if (explicit) return [explicit];
+        const hashtags = String(post.title || '').match(/#[^\s#]+/g) || [];
+        return [...new Set(hashtags.map((tag) => tag.replace(/[、。,.!?！？]+$/, '')).filter(Boolean))];
+      }
+
+      function renderDashboard() {
+        const withViews = posts.filter((post) => number(post.views) > 0);
+        const totalViews = withViews.reduce((sum, post) => sum + number(post.views), 0);
+        const totalSaves = withViews.reduce((sum, post) => sum + number(post.saves), 0);
+        const averageViews = withViews.length ? totalViews / withViews.length : 0;
+        const averageSaveRate = totalViews ? totalSaves / totalViews * 100 : 0;
+        const top = (source, score) => source.slice().sort((a, b) => score(b) - score(a)).slice(0, 5);
+        const ranked = (source, score, formatValue, meta) => top(source, score).map((post) => ({ post, value: formatValue(post), meta: meta(post) }));
+
+        renderRankList('topSave', ranked(withViews.filter((post) => metrics(post).save > 0), (post) => metrics(post).save,
+          (post) => percent(metrics(post).save), (post) => `${formatNumber(number(post.views))}再生・保存${formatNumber(number(post.saves))}件`), '保存数が入力された投稿がありません');
+        renderRankList('topFollow', ranked(withViews.filter((post) => metrics(post).follow > 0), (post) => metrics(post).follow,
+          (post) => percent(metrics(post).follow), (post) => `${formatNumber(number(post.views))}再生・フォロー+${formatNumber(number(post.follows))}`), 'フォロー増加数が入力された投稿がありません');
+        renderRankList('topFull', ranked(posts.filter((post) => fullWatchRate(post) > 0), fullWatchRate,
+          (post) => percent(fullWatchRate(post)), (post) => `${formatNumber(number(post.views))}再生・平均視聴${number(post.avgWatchTime).toFixed(1)}秒`), 'フル視聴率が入力された投稿がありません');
+        renderRankList('topViews', ranked(withViews, (post) => number(post.views),
+          (post) => `${formatNumber(number(post.views))}回`, (post) => `保存率${percent(metrics(post).save)}・いいね率${percent(metrics(post).like)}`), '再生データがありません');
+
+        const hiddenGems = withViews.filter((post) => number(post.views) < averageViews && metrics(post).save > averageSaveRate);
+        renderRankList('hiddenGems', ranked(hiddenGems, (post) => metrics(post).save,
+          (post) => percent(metrics(post).save), (post) => `${formatNumber(number(post.views))}再生（平均${formatNumber(Math.round(averageViews))}）`), '該当する投稿はありません');
+        const saveWarnings = withViews.filter((post) => number(post.views) >= averageViews && metrics(post).save < averageSaveRate);
+        renderRankList('saveWarnings', ranked(saveWarnings, (post) => number(post.views),
+          (post) => `${formatNumber(number(post.views))}回`, (post) => `保存率${percent(metrics(post).save)}（全体${percent(averageSaveRate)}）`), '該当する投稿はありません');
+
+        const themeMap = new Map();
+        posts.forEach((post) => postThemes(post).forEach((theme) => {
+          if (!themeMap.has(theme)) themeMap.set(theme, { theme, posts: [] });
+          themeMap.get(theme).posts.push(post);
+        }));
+        const themes = [...themeMap.values()].map((group) => {
+          const views = group.posts.reduce((sum, post) => sum + number(post.views), 0);
+          const saves = group.posts.reduce((sum, post) => sum + number(post.saves), 0);
+          const follows = group.posts.reduce((sum, post) => sum + number(post.follows), 0);
+          const avgViews = views / group.posts.length;
+          const saveRate = views ? saves / views * 100 : 0;
+          const followRate = views ? follows / views * 100 : 0;
+          const fullRate = group.posts.reduce((sum, post) => sum + fullWatchRate(post), 0) / group.posts.length;
+          const score = (averageViews ? avgViews / averageViews * 10 : 0) + saveRate * 4 + followRate * 6 + fullRate * .5;
+          return { ...group, avgViews, saveRate, followRate, fullRate, score };
+        }).sort((a, b) => b.score - a.score).slice(0, 5);
+
+        $('themeCandidates').innerHTML = themes.length ? themes.map((theme) => `<div class="theme-card">
+          <b>${escapeHtml(theme.theme)}</b>
+          <span>${theme.posts.length}投稿・平均${formatNumber(Math.round(theme.avgViews))}再生<br>保存率${percent(theme.saveRate)}・フル視聴率${percent(theme.fullRate)}</span>
+        </div>`).join('') : '<div class="analysis-empty">テーマまたはタイトル内のハッシュタグを登録すると候補を表示できます</div>';
+        $('analysisSummary').textContent = posts.length
+          ? `${posts.length}投稿を分析・平均再生数 ${formatNumber(Math.round(averageViews))}回・全体保存率 ${percent(averageSaveRate)}`
+          : '投稿を登録すると分析結果が表示されます。';
+      }
+
+      function localPostDate(value) {
+        const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+      }
+
+      function startOfWeek(date) {
+        const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+        return start;
+      }
+
+      function weeklySelection(period) {
+        if (period === 'all') return { posts: posts.slice(), start: null, end: null };
+        const thisWeek = startOfWeek(new Date());
+        const start = new Date(thisWeek);
+        if (period === 'last') start.setDate(start.getDate() - 7);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 7);
+        return {
+          posts: posts.filter((post) => {
+            const date = localPostDate(post.postDate);
+            return date && date >= start && date < end;
+          }),
+          start, end
+        };
+      }
+
+      function renderWeeklyReview() {
+        const selection = weeklySelection(weeklyPeriod);
+        const selected = selection.posts;
+        const totalViews = selected.reduce((sum, post) => sum + number(post.views), 0);
+        const totalSaves = selected.reduce((sum, post) => sum + number(post.saves), 0);
+        const totalFollows = selected.reduce((sum, post) => sum + number(post.follows), 0);
+        const avgViews = selected.length ? totalViews / selected.length : 0;
+        const avgSave = totalViews ? totalSaves / totalViews * 100 : 0;
+        const avgFollow = totalViews ? totalFollows / totalViews * 100 : 0;
+        const avgFull = selected.length ? selected.reduce((sum, post) => sum + fullWatchRate(post), 0) / selected.length : 0;
+        const topThree = (source, score, value, meta) => source.slice().sort((a, b) => score(b) - score(a)).slice(0, 3)
+          .map((post) => ({ post, value: value(post), meta: meta(post) }));
+
+        $('weeklyPostCount').textContent = formatNumber(selected.length);
+        $('weeklyAvgViews').textContent = formatNumber(Math.round(avgViews));
+        $('weeklyAvgSave').textContent = percent(avgSave);
+        $('weeklyAvgFollow').textContent = percent(avgFollow);
+        $('weeklyAvgFull').textContent = percent(avgFull);
+
+        const dateLabel = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
+        if (weeklyPeriod === 'all') {
+          const dates = selected.map((post) => localPostDate(post.postDate)).filter(Boolean).sort((a, b) => a - b);
+          $('weeklyRange').textContent = dates.length ? `全期間 ${dateLabel(dates[0])}〜${dateLabel(dates[dates.length - 1])}・${selected.length}投稿` : '全期間・投稿データがありません';
+        } else {
+          const endDate = new Date(selection.end); endDate.setDate(endDate.getDate() - 1);
+          $('weeklyRange').textContent = `${weeklyPeriod === 'this' ? '今週' : '先週'} ${dateLabel(selection.start)}〜${dateLabel(endDate)}・${selected.length}投稿`;
+        }
+
+        const withViews = selected.filter((post) => number(post.views) > 0);
+        renderRankList('weeklyTopSave', topThree(withViews.filter((post) => metrics(post).save > 0), (post) => metrics(post).save,
+          (post) => percent(metrics(post).save), (post) => `${formatNumber(number(post.views))}再生・保存${formatNumber(number(post.saves))}件`), '保存実績のある投稿がありません');
+        renderRankList('weeklyTopFollow', topThree(withViews.filter((post) => metrics(post).follow > 0), (post) => metrics(post).follow,
+          (post) => percent(metrics(post).follow), (post) => `${formatNumber(number(post.views))}再生・フォロー+${formatNumber(number(post.follows))}`), 'フォロー実績のある投稿がありません');
+        renderRankList('weeklyTopFull', topThree(selected.filter((post) => fullWatchRate(post) > 0), fullWatchRate,
+          (post) => percent(fullWatchRate(post)), (post) => `${formatNumber(number(post.views))}再生・平均視聴${number(post.avgWatchTime).toFixed(1)}秒`), 'フル視聴率のある投稿がありません');
+
+        const ideas = [];
+        if (!selected.length) {
+          ideas.push('対象期間に投稿がありません。まず1本投稿し、再生・保存・完走の基準値を作りましょう。');
+        } else {
+          if (selected.length < 3) ideas.push(`投稿数は${selected.length}本です。次週は3本以上を目安に、テーマを固定して投稿頻度の影響を検証しましょう。`);
+          else ideas.push(`投稿数は${selected.length}本です。投稿頻度を維持し、上位投稿の構成を別テーマでも再現しましょう。`);
+
+          const bestSave = withViews.slice().sort((a, b) => metrics(b).save - metrics(a).save)[0];
+          if (avgSave < 3) ideas.push('平均保存率が3%未満です。冒頭で「保存して後で使える」理由を示し、手順・一覧・テンプレート型の内容を増やしましょう。');
+          else if (bestSave) ideas.push(`保存率は良好です。「${bestSave.title}」の情報量と保存訴求を踏襲した派生投稿を検証しましょう。`);
+
+          if (avgFollow < .3) ideas.push('フォロー率が0.3%未満です。動画末尾に次回予告を入れ、フォローすると得られる継続的な価値を具体化しましょう。');
+          else ideas.push('フォロー転換は良好です。フォロー率上位投稿と同じシリーズ名・CTAを次週も継続しましょう。');
+
+          if (avgFull < 15) ideas.push('平均フル視聴率が15%未満です。結論を冒頭に置き、動画尺の短縮と不要な前置きの削除を優先しましょう。');
+          else if (avgFull < 25) ideas.push('フル視聴率は維持できています。冒頭1〜2秒のフックとテンポを改善し、25%以上を目指しましょう。');
+          else ideas.push('フル視聴率は25%以上で好調です。完走率上位投稿の尺と構成をテンプレート化して横展開しましょう。');
+        }
+        $('weeklyImprovements').innerHTML = ideas.map((idea, index) => `<div class="improvement-item"><div class="improvement-icon">${index + 1}</div><div>${escapeHtml(idea)}</div></div>`).join('');
+      }
+
+      function generatePostTemplate(post) {
+        const title = String(post.title || '');
+        const lowerTitle = title.toLowerCase();
+        const hashtags = postThemes(post).filter((theme) => !['#会社員', '#仕事効率化', '#時短術', '#AI'].includes(theme));
+        let topic = String(post.theme || '').trim() || hashtags[0] || '仕事効率化';
+        if (lowerTitle.includes('chatgpt') || lowerTitle.includes('プロンプト')) topic = 'ChatGPTプロンプト';
+        else if (lowerTitle.includes('excel')) topic = 'Excel時短術';
+        const edition = title.match(/第\s*(\d+)\s*弾/);
+        const editionText = edition ? `【第${Number(edition[1]) + 1}弾】` : '';
+        const m = metrics(post);
+        let kpi = `再生数1,000回以上（元投稿 ${formatNumber(number(post.views))}回）`;
+        if (m.save >= 3) kpi = `保存率4%以上（元投稿 ${percent(m.save)}）`;
+        else if (m.follow >= .3) kpi = `フォロー率0.5%以上（元投稿 ${percent(m.follow)}）`;
+        else if (fullWatchRate(post) >= 25) kpi = `フル視聴率30%以上（元投稿 ${percent(fullWatchRate(post))}）`;
+        const screen = lowerTitle.includes('chatgpt') || lowerTitle.includes('プロンプト')
+          ? 'ChatGPTの入力画面 → プロンプトを貼り付け → 回答が生成される瞬間 → 仕事で使える完成例'
+          : lowerTitle.includes('excel')
+            ? 'Excelの困っている画面 → ChatGPTへ日本語で依頼 → 関数をコピー → Excelで結果が出る瞬間'
+            : `${topic}を使う前の状態 → 操作手順を3ステップで実演 → 完成後の変化を並べて見せる`;
+        return {
+          '次回投稿タイトル案': `会社員なら保存推奨。そのまま使える${topic}3選${editionText}｜仕事がラクになる`,
+          '冒頭1秒フック': '会社員なら保存推奨。これ、そのまま使えます。',
+          '15秒構成': `0〜1秒：フック「会社員なら保存推奨」\n1〜3秒：悩みと得られる結果を先出し\n3〜12秒：そのまま使える3つをテンポよく実演\n12〜14秒：完成結果・ビフォーアフター\n14〜15秒：保存＋次回予告`,
+          '画面録画で見せる内容': screen,
+          '保存導線': '「あとでそのまま使えるように、今のうちに保存しておいてください」',
+          'フォロー導線': `「仕事がラクになる${topic}を続けて紹介します。次も使いたい方はフォロー」`,
+          '狙うKPI': kpi
+        };
+      }
+
+      function openTemplate(post) {
+        currentTemplate = generatePostTemplate(post);
+        $('templateSource').textContent = `元投稿：${post.title}`;
+        $('templateOutput').innerHTML = Object.entries(currentTemplate).map(([label, content]) => {
+          const wide = ['次回投稿タイトル案', '15秒構成', '画面録画で見せる内容'].includes(label) ? ' wide' : '';
+          return `<div class="template-item${wide}"><small>${escapeHtml(label)}</small><div>${escapeHtml(content)}</div></div>`;
+        }).join('');
+        $('templateDialog').showModal();
+      }
+
+      function closeTemplate() { $('templateDialog').close(); }
+
+      function render() {
+        const query = $('searchInput').value.trim().toLowerCase();
+        const sort = $('sortSelect').value;
+        const productOnly = $('productFilter').value === 'yes';
+        let visible = posts.filter((post) => {
+          const matchesQuery = [post.title, post.theme, post.memo, post.productCategory, post.productMemo]
+            .some((v) => String(v || '').toLowerCase().includes(query));
+          return matchesQuery && (!productOnly || post.productCandidate === 'yes');
+        });
+        visible.sort((a, b) => {
+          if (sort === 'date-asc') return a.postDate.localeCompare(b.postDate);
+          if (sort === 'views-desc') return number(b.views) - number(a.views);
+          if (sort === 'save-desc') return metrics(b).save - metrics(a).save;
+          if (sort === 'like-desc') return metrics(b).like - metrics(a).like;
+          if (sort === 'watch-desc') return number(b.avgWatchTime) - number(a.avgWatchTime);
+          if (sort === 'full-watch-desc') return fullWatchRate(b) - fullWatchRate(a);
+          return b.postDate.localeCompare(a.postDate);
+        });
+
+        $('postTable').innerHTML = visible.map((post) => {
+          const m = metrics(post);
+          const labels = [
+            number(post.views) >= 500 ? '<span class="auto-label label-views">再生強い</span>' : '',
+            m.like >= 1 ? '<span class="auto-label label-like">反応あり</span>' : '',
+            m.save >= 3 ? '<span class="auto-label label-save">保存強い</span>' : '',
+            fullWatchRate(post) >= 25 ? '<span class="auto-label label-complete">完走強い</span>' :
+              fullWatchRate(post) >= 15 ? '<span class="auto-label label-retain">維持あり</span>' : '',
+            post.productCandidate === 'yes' ? `<span class="auto-label label-product">商品化${post.productCategory ? `・${escapeHtml(post.productCategory)}` : ''}</span>` : '',
+            post.promptCollectionCandidate ? '<span class="auto-label label-prompt">プロンプト集候補</span>' : ''
+          ].filter(Boolean).join('');
+          return `<tr>
+            <td><div class="post-cell"><div class="post-title" title="${escapeHtml(post.title)}">${escapeHtml(post.title)}</div>${labels ? `<div class="auto-labels">${labels}</div>` : ''}</div></td>
+            <td class="date">${escapeHtml(post.postDate)}</td>
+            <td><span class="theme-badge">${escapeHtml(post.theme || '未設定')}</span></td>
+            <td><b>${formatNumber(number(post.views))}</b></td>
+            <td>${formatNumber(number(post.comments))}</td>
+            <td>${number(post.videoDuration).toFixed(1)}秒</td>
+            <td>${number(post.avgWatchTime).toFixed(1)}秒</td>
+            <td class="rate">${percent(retentionRate(post))}</td>
+            <td class="rate">${percent(fullWatchRate(post))}</td>
+            <td class="rate ${m.save >= 1 ? 'good' : ''}">${percent(m.save)}</td>
+            <td class="rate ${m.like >= 5 ? 'good' : ''}">${percent(m.like)}</td>
+            <td class="rate">${percent(m.follow)}</td>
+            <td><div class="actions"><button class="btn icon-btn template-btn" data-id="${post.id}" title="次回企画を生成">テンプレ化</button><button class="btn icon-btn edit-btn" data-id="${post.id}" title="編集">✎</button><button class="btn icon-btn btn-danger delete-btn" data-id="${post.id}" title="削除">×</button></div></td>
+          </tr>`;
+        }).join('');
+
+        $('resultCount').textContent = `${visible.length}件を表示`;
+        $('tableWrap').style.display = visible.length ? '' : 'none';
+        $('emptyState').classList.toggle('show', !visible.length);
+        $('emptyState').querySelector('strong').textContent = posts.length && (query || productOnly) ? '該当する投稿がありません' : 'まだ投稿がありません';
+        updateSummary();
+        renderDashboard();
+        renderWeeklyReview();
+      }
+
+      function updateSummary() {
+        const totalViews = posts.reduce((sum, p) => sum + number(p.views), 0);
+        const aggregateRate = (key) => totalViews ? posts.reduce((sum, p) => sum + number(p[key]), 0) / totalViews * 100 : 0;
+        $('totalViews').textContent = formatNumber(totalViews);
+        $('postSummary').textContent = `${posts.length}件の投稿`;
+        $('avgSaveRate').textContent = percent(aggregateRate('saves'));
+        $('avgLikeRate').textContent = percent(aggregateRate('likes'));
+        $('avgFollowRate').textContent = percent(aggregateRate('follows'));
+        $('avgFullWatchRate').textContent = percent(posts.length ? posts.reduce((sum, post) => sum + fullWatchRate(post), 0) / posts.length : 0);
+      }
+
+      function openForm(post = null) {
+        $('postForm').reset();
+        $('postId').value = post?.id || '';
+        $('title').value = post?.title || '';
+        $('postDate').value = post?.postDate || today();
+        $('theme').value = post?.theme || '';
+        ['views','likes','comments','saves','follows','videoDuration','avgWatchTime','fullWatchRate'].forEach((key) => $(key).value = post?.[key] ?? 0);
+        $('memo').value = post?.memo || '';
+        $('productCandidate').value = post?.productCandidate || 'hold';
+        $('productCategory').value = post?.productCategory || '';
+        $('productMemo').value = post?.productMemo || '';
+        $('promptCollectionCandidate').checked = Boolean(post?.promptCollectionCandidate);
+        $('modalTitle').textContent = post ? '投稿を編集' : '投稿を追加';
+        updateLiveRates();
+        $('postDialog').showModal();
+        setTimeout(() => $('title').focus(), 50);
+      }
+
+      function closeForm() { $('postDialog').close(); }
+
+      function updateLiveRates() {
+        const views = number($('views').value);
+        $('liveSaveRate').textContent = percent(rate(number($('saves').value), views));
+        $('liveLikeRate').textContent = percent(rate(number($('likes').value), views));
+        $('liveFollowRate').textContent = percent(rate(number($('follows').value), views));
+        $('liveRetentionRate').textContent = percent(rate(number($('avgWatchTime').value), number($('videoDuration').value)));
+      }
+
+      function notify(message) {
+        $('toast').textContent = message;
+        $('toast').classList.add('show');
+        clearTimeout(notify.timer);
+        notify.timer = setTimeout(() => $('toast').classList.remove('show'), 2200);
+      }
+
+      $('postForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const id = $('postId').value || (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+        const existing = posts.find((post) => post.id === id) || {};
+        const post = {
+          ...existing, id, title: $('title').value.trim(), postDate: $('postDate').value, theme: $('theme').value.trim(),
+          views: number($('views').value), likes: number($('likes').value), comments: number($('comments').value), saves: number($('saves').value),
+          follows: number($('follows').value), videoDuration: number($('videoDuration').value), avgWatchTime: number($('avgWatchTime').value),
+          fullWatchRate: Math.min(100, number($('fullWatchRate').value)), memo: $('memo').value.trim(),
+          productCandidate: $('productCandidate').value, productCategory: $('productCategory').value,
+          productMemo: $('productMemo').value.trim(), promptCollectionCandidate: $('promptCollectionCandidate').checked,
+          updatedAt: new Date().toISOString()
+        };
+        const index = posts.findIndex((p) => p.id === id);
+        if (index >= 0) posts[index] = post; else posts.push(post);
+        savePosts(); render(); closeForm(); notify(index >= 0 ? '投稿を更新しました' : '投稿を保存しました');
+      });
+
+      $('postTable').addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-id]');
+        if (!button) return;
+        const post = posts.find((p) => p.id === button.dataset.id);
+        if (button.classList.contains('template-btn')) { openTemplate(post); return; }
+        if (button.classList.contains('edit-btn')) openForm(post);
+        if (button.classList.contains('delete-btn') && confirm(`「${post.title}」を削除しますか？`)) {
+          posts = posts.filter((p) => p.id !== post.id); savePosts(); render(); notify('投稿を削除しました');
+        }
+      });
+
+      $('exportBtn').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(posts, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob); link.download = `tiklog-backup-${today()}.json`; link.click();
+        URL.revokeObjectURL(link.href); notify('バックアップを書き出しました');
+      });
+
+      $('importBtn').addEventListener('click', () => $('importFile').click());
+      $('importFile').addEventListener('change', async (event) => {
+        const file = event.target.files[0]; if (!file) return;
+        try {
+          const data = JSON.parse(await file.text());
+          if (!Array.isArray(data)) throw new Error();
+          if (confirm(`現在のデータを置き換え、${data.length}件を読み込みますか？`)) {
+            posts = data; savePosts(); render(); notify('バックアップを読み込みました');
+          }
+        } catch { alert('有効なTikLogのJSONファイルではありません。'); }
+        event.target.value = '';
+      });
+
+      function parseCsv(text) {
+        const rows = [];
+        let row = [], field = '', quoted = false;
+        text = text.replace(/^\uFEFF/, '');
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (quoted) {
+            if (char === '"' && text[i + 1] === '"') { field += '"'; i++; }
+            else if (char === '"') quoted = false;
+            else field += char;
+          } else if (char === '"') quoted = true;
+          else if (char === ',') { row.push(field); field = ''; }
+          else if (char === '\n') { row.push(field.replace(/\r$/, '')); rows.push(row); row = []; field = ''; }
+          else field += char;
+        }
+        if (field.length || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
+        return rows.filter((items) => items.some((item) => item.trim()));
+      }
+
+      function normalizeHeader(value) {
+        return String(value || '').replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+      }
+
+      function parsePostDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const japanese = raw.match(/^(?:(\d{4})年)?\s*(\d{1,2})月\s*(\d{1,2})日/);
+        if (japanese) {
+          const year = japanese[1] || new Date().getFullYear();
+          return `${year}-${String(japanese[2]).padStart(2, '0')}-${String(japanese[3]).padStart(2, '0')}`;
+        }
+        const numeric = raw.match(/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})/);
+        if (numeric) return `${numeric[1]}-${numeric[2].padStart(2, '0')}-${numeric[3].padStart(2, '0')}`;
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+      }
+
+      function csvValue(record, aliases) {
+        for (const alias of aliases) {
+          const value = record[normalizeHeader(alias)];
+          if (value !== undefined) return value;
+        }
+        return '';
+      }
+
+      function csvNumber(value) {
+        const normalized = String(value ?? '').trim().replace(/,/g, '').replace(/[％%秒s]/gi, '');
+        if (normalized.includes(':')) {
+          const parts = normalized.split(':').map(Number);
+          if (parts.every(Number.isFinite)) return Math.max(0, parts.reduce((total, part) => total * 60 + part, 0));
+        }
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+      }
+
+      $('csvImportBtn').addEventListener('click', () => $('csvImportFile').click());
+      $('csvImportFile').addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+          const rows = parseCsv(await file.text());
+          if (rows.length < 2) throw new Error('データ行がありません。');
+          const headers = rows[0].map(normalizeHeader);
+          const required = [
+            ['投稿タイトル', 'video title', 'title', '投稿タイトル'],
+            ['投稿日', 'post time', 'post date', '投稿日'],
+            ['再生数', 'total views', 'views', '再生数'],
+            ['いいね数', 'total likes', 'likes', 'いいね数'],
+            ['コメント数', 'total comments', 'comments', 'コメント数']
+          ];
+          const missing = required.filter(([, ...aliases]) => !aliases.some((alias) => headers.includes(normalizeHeader(alias))));
+          if (missing.length) throw new Error(`必要な列がありません: ${missing.map(([label]) => label).join('、')}`);
+
+          const avgWatchAliases = ['average watch time', 'average watch time (seconds)', 'average time watched', 'avg watch time', '平均視聴時間'];
+          const hasAvgWatchTime = avgWatchAliases.some((alias) => headers.includes(normalizeHeader(alias)));
+          const existingByKey = new Map(posts.map((post, index) => [`${String(post.title || '').trim()}\u0000${post.postDate}`, index]));
+          const processed = new Set();
+          let added = 0, updated = 0, skipped = 0;
+          rows.slice(1).forEach((values) => {
+            const record = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+            const title = csvValue(record, ['video title', 'title', '投稿タイトル']).trim();
+            const postDate = parsePostDate(csvValue(record, ['post time', 'post date', '投稿日']));
+            const key = `${title}\u0000${postDate}`;
+            if (!title || !postDate || processed.has(key)) { skipped++; return; }
+            processed.add(key);
+
+            const csvMetrics = {
+              views: csvNumber(csvValue(record, ['total views', 'views', '再生数'])),
+              likes: csvNumber(csvValue(record, ['total likes', 'likes', 'いいね数'])),
+              comments: csvNumber(csvValue(record, ['total comments', 'comments', 'コメント数']))
+            };
+            if (hasAvgWatchTime) csvMetrics.avgWatchTime = csvNumber(csvValue(record, avgWatchAliases));
+
+            if (existingByKey.has(key)) {
+              const index = existingByKey.get(key);
+              posts[index] = { ...posts[index], ...csvMetrics };
+              updated++;
+              return;
+            }
+
+            const post = {
+              id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+              title, postDate, theme: '',
+              ...csvMetrics,
+              saves: 0, follows: 0, fullWatchRate: 0, videoDuration: 0,
+              avgWatchTime: csvMetrics.avgWatchTime ?? 0, memo: '', productCandidate: 'hold',
+              productCategory: '', productMemo: '', promptCollectionCandidate: false,
+              updatedAt: new Date().toISOString()
+            };
+            posts.push(post);
+            existingByKey.set(key, posts.length - 1);
+            added++;
+          });
+          savePosts(); render();
+          const message = `新規追加${added}件、更新${updated}件、スキップ${skipped}件`;
+          $('importResult').textContent = message;
+          $('importResult').classList.add('show');
+          notify(message);
+        } catch (error) {
+          alert(`CSVを読み込めませんでした。${error.message ? `\n${error.message}` : ''}`);
+        }
+        event.target.value = '';
+      });
+
+      ['views','likes','saves','follows','videoDuration','avgWatchTime'].forEach((id) => $(id).addEventListener('input', updateLiveRates));
+      $('searchInput').addEventListener('input', render);
+      $('sortSelect').addEventListener('change', render);
+      $('productFilter').addEventListener('change', render);
+      document.querySelectorAll('.period-btn').forEach((button) => button.addEventListener('click', () => {
+        weeklyPeriod = button.dataset.period;
+        document.querySelectorAll('.period-btn').forEach((item) => item.classList.toggle('active', item === button));
+        renderWeeklyReview();
+      }));
+      document.querySelectorAll('.tab-btn').forEach((button) => button.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach((item) => item.classList.toggle('active', item === button));
+        document.querySelectorAll('.tab-view').forEach((view) => view.classList.toggle('active', view.id === button.dataset.tab));
+        if (button.dataset.tab === 'dashboardView') renderDashboard();
+        if (button.dataset.tab === 'weeklyView') renderWeeklyReview();
+      }));
+      $('addBtn').addEventListener('click', () => openForm());
+      $('closeBtn').addEventListener('click', closeForm);
+      $('cancelBtn').addEventListener('click', closeForm);
+      $('templateCloseBtn').addEventListener('click', closeTemplate);
+      $('templateCancelBtn').addEventListener('click', closeTemplate);
+      $('copyTemplateBtn').addEventListener('click', async () => {
+        if (!currentTemplate) return;
+        const text = Object.entries(currentTemplate).map(([label, content]) => `【${label}】\n${content}`).join('\n\n');
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error();
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const area = document.createElement('textarea');
+          area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+          document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+        }
+        notify('投稿テンプレートをコピーしました');
+      });
+      $('postDialog').addEventListener('click', (event) => { if (event.target === $('postDialog')) closeForm(); });
+      $('templateDialog').addEventListener('click', (event) => { if (event.target === $('templateDialog')) closeTemplate(); });
+      render();
+    })();
+  </script>
+</body>
+</html>
