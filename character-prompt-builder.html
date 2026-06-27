@@ -339,6 +339,17 @@
 雰囲気：現実の商業施設で撮ったような、自然で上品な大人可愛いスナップ
 補足：手足は自然。広角歪みなし。実写寄り。`;
       const characterLabelMap = Object.fromEntries(characterSchema.map((field) => [field.label, field.key]));
+      Object.assign(characterLabelMap, {
+        '名前':'name', 'キャラ名':'name', '年齢':'age', '身長':'height', '体重':'weight',
+        'スリーサイズ':'bodyInfo', 'サイズ':'bodyInfo', 'B':'bodyInfo', 'W':'bodyInfo', 'H':'bodyInfo',
+        'カップ':'bodyInfo', 'アンダー':'bodyInfo', '髪型':'hairstyle', '髪色':'hairColor', '瞳':'faceReference', '目':'faceReference', '肌':'faceReference',
+        '顔立ち':'faceReference', '体型情報':'bodyInfo', '体型':'bodyInfo', '雰囲気':'overallMood', 'コンセプト':'overallMood',
+        '服装傾向':'commonOutfits', '服装':'commonOutfits', '固定したい特徴':'bodyLock', '固定特徴':'bodyLock',
+        'NG':'prohibitions', '禁止事項':'prohibitions', '参考プロンプト':'memo', 'メモ':'memo',
+        '顔の方向性':'faceDirection', '全体の雰囲気':'overallMood', 'コア定義':'coreDefinition',
+        '顔の基準説明':'faceReference', '体型固定文':'bodyLock', '雰囲気固定文':'moodLock', 'ベース導入文':'baseIntro',
+        'よく使う衣装':'commonOutfits', 'よく使う場所':'memo', 'よく使う構図':'memo'
+      });
       const characterSample = `キャラ名：ユナ
 年齢：26歳
 身長：160cm
@@ -423,6 +434,7 @@
         const lines = text.split(/\r?\n/);
         const updates = new Map();
         const consumed = new Set();
+        const measurementState = {};
         const currentValue = (key) => updates.has(key) ? updates.get(key) : $(`char_${key}`).value.trim();
         const appendUpdate = (key, value, separator = '\n') => {
           const clean = String(value || '').trim();
@@ -431,129 +443,129 @@
           if (current.includes(clean)) return;
           updates.set(key, [current, clean].filter(Boolean).join(separator));
         };
-        const setNatural = (key, value) => { if (value && !updates.has(key)) updates.set(key, value); };
+        const setValue = (key, value, separator = '\n') => {
+          const clean = String(value || '').trim();
+          if (!clean) return;
+          if (updates.has(key)) {
+            const current = updates.get(key);
+            if (!current.includes(clean)) updates.set(key, [current, clean].filter(Boolean).join(separator));
+          } else {
+            updates.set(key, clean);
+          }
+        };
         const cleanListLine = (line) => line.trim().replace(/^[-・●*▪︎■□]\s*/, '').trim();
         const markRange = (start, end) => { for (let i = start; i < end; i++) consumed.add(i); };
-
-        lines.forEach((line, index) => {
-          const match = line.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/);
-          if (!match) return;
-          const label = match[1].trim().replace(/^[・●\-]\s*/, '');
-          const key = characterLabelMap[label];
-          if (!key) return;
-          updates.set(key, match[2].trim());
-          consumed.add(index);
-        });
-
-        const numberPattern = '(\\d+(?:\\.\\d+)?)';
-        const nameLine = lines.findIndex((line) => /^\s*[一-龯ぁ-んァ-ヶー々・]{1,30}\s*[（(][A-Za-z][^）)]*[）)]\s*$/.test(line));
-        if (nameLine >= 0) {
-          const name = lines[nameLine].match(/^\s*([一-龯ぁ-んァ-ヶー々・]{1,30})\s*[（(]/)[1];
-          setNatural('name', name); consumed.add(nameLine);
-        }
-
-        lines.forEach((line, index) => {
-          let matched = false;
-          const height = line.match(new RegExp(`身長\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
-          if (height) { setNatural('height', `${height[1]}cm`); matched = true; }
-          const weight = line.match(new RegExp(`体重\\s*[：:]?\\s*(約|およそ)?\\s*${numberPattern}\\s*kg`, 'i'));
-          if (weight) { setNatural('weight', `${weight[1] ? '約' : ''}${weight[2]}kg`); matched = true; }
-          const age = line.match(/(?:成人女性[^\d]{0,12})?(\d{1,3})\s*歳/);
-          if (age) { setNatural('age', `${age[1]}歳`); matched = true; }
-          const hair = line.match(/髪は\s*([^。、,]+?)の([^。、,]+?)(?:[。、,]|$)/);
-          if (hair) {
-            setNatural('hairColor', hair[1].trim()); setNatural('hairstyle', hair[2].trim()); matched = true;
+        const normalizeLabel = (value) => String(value || '').trim().replace(/^[・●\-]\s*/, '').replace(/[　\s]/g, '').replace(/[：:]/g, '');
+        const resolveLabelKey = (value) => {
+          const normalized = normalizeLabel(value);
+          if (!normalized) return null;
+          return characterLabelMap[normalized] || characterLabelMap[normalized.replace(/\s+/g, '')] || null;
+        };
+        const directLabelMappings = {
+          '名前':'name', 'キャラ名':'name', '年齢':'age', '身長':'height', '体重':'weight',
+          'スリーサイズ':'bodyInfo', 'サイズ':'bodyInfo', 'B':'bodyInfo', 'W':'bodyInfo', 'H':'bodyInfo',
+          'カップ':'bodyInfo', 'アンダー':'bodyInfo', 'アンダーバスト':'bodyInfo', 'アンダーサイズ':'bodyInfo',
+          '髪型':'hairstyle', '髪色':'hairColor', '瞳':'faceReference', '目':'faceReference', '肌':'faceReference',
+          '顔立ち':'faceReference', '体型情報':'bodyInfo', '体型':'bodyInfo', '雰囲気':'overallMood', 'コンセプト':'overallMood',
+          '服装傾向':'commonOutfits', '服装':'commonOutfits', '固定したい特徴':'bodyLock', '固定特徴':'bodyLock',
+          'NG':'prohibitions', '禁止事項':'prohibitions', '参考プロンプト':'memo', 'メモ':'memo'
+        };
+        const resolveDirectLabelKey = (value) => {
+          const normalized = normalizeLabel(value);
+          if (!normalized) return null;
+          return directLabelMappings[normalized] || directLabelMappings[normalized.replace(/\s+/g, '')] || null;
+        };
+        const setMeasurementValue = (label, value) => {
+          const clean = String(value || '').trim();
+          if (!clean) return;
+          measurementState[label] = clean.replace(/^[：:]/, '').trim();
+        };
+        const parseMeasurementValues = (input) => {
+          const text = String(input || '').trim();
+          const result = {};
+          if (!text) return result;
+          const compact = text.replace(/\s+/g, '');
+          const compactMatch = compact.match(/B(\d+(?:\.\d+)?)(?:[\/／.-]|$)W(\d+(?:\.\d+)?)(?:[\/／.-]|$)H(\d+(?:\.\d+)?)/i) || compact.match(/B(\d+(?:\.\d+)?)W(\d+(?:\.\d+)?)H(\d+(?:\.\d+)?)/i);
+          if (compactMatch) {
+            result.B = compactMatch[1];
+            result.W = compactMatch[2];
+            result.H = compactMatch[3];
+            return result;
           }
-          if (matched) consumed.add(index);
-        });
+          [['B', new RegExp('B\\s*[:：]?\\s*(\\d+(?:\\.\\d+)?)', 'i')], ['W', new RegExp('W\\s*[:：]?\\s*(\\d+(?:\\.\\d+)?)', 'i')], ['H', new RegExp('H\\s*[:：]?\\s*(\\d+(?:\\.\\d+)?)', 'i')]].forEach(([label, regex]) => {
+            const match = text.match(regex);
+            if (match) result[label] = match[1];
+          });
+          return result;
+        };
+        const applyMeasurementState = () => {
+          const parts = ['B', 'W', 'H'].filter((key) => measurementState[key]).map((key) => `${key}${measurementState[key]}`);
+          if (parts.length) appendUpdate('bodyInfo', parts.join(' / '), '、');
+        };
 
-        const bodyParts = [];
-        const addBodyPart = (value) => { if (value && !bodyParts.includes(value)) bodyParts.push(value); };
         lines.forEach((line, index) => {
-          let matched = false;
-          const measurements = line.match(/\bB\s*\d+(?:\.\d+)?\s*[-ー－–—]\s*W\s*\d+(?:\.\d+)?\s*[-ー－–—]\s*H\s*\d+(?:\.\d+)?/i);
-          if (measurements) { addBodyPart(measurements[0].replace(/\s/g, '').replace(/[ー－–—]/g, '-').toUpperCase()); matched = true; }
-          const cup = line.match(/([A-Z])\s*カップ/i);
-          if (cup) { addBodyPart(`${cup[1].toUpperCase()}カップ`); matched = true; }
-          const underBust = line.match(new RegExp(`アンダーバスト\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
-          if (underBust) { addBodyPart(`アンダーバスト${underBust[1]}cm`); matched = true; }
-          const shoulder = line.match(new RegExp(`肩幅\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
-          if (shoulder) { addBodyPart(`肩幅${shoulder[1]}cm`); matched = true; }
-          const inseam = line.match(new RegExp(`股下\\s*[：:]?\\s*${numberPattern}\\s*cm`, 'i'));
-          if (inseam) { addBodyPart(`股下${inseam[1]}cm`); matched = true; }
-          if (matched) consumed.add(index);
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          const labelMatch = line.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
+          if (labelMatch) {
+            const label = labelMatch[1].trim();
+            const normalizedLabel = normalizeLabel(label);
+            const value = labelMatch[2].trim();
+            if (['スリーサイズ', 'サイズ'].includes(normalizedLabel)) {
+              const parsed = parseMeasurementValues(value);
+              Object.entries(parsed).forEach(([measurementKey, measurementValue]) => { measurementState[measurementKey] = measurementValue; });
+              consumed.add(index);
+              return;
+            }
+            if (['B', 'W', 'H'].includes(normalizedLabel)) {
+              setMeasurementValue(normalizedLabel, value);
+              consumed.add(index);
+              return;
+            }
+            const key = resolveDirectLabelKey(label) || resolveLabelKey(label);
+            if (!key) return;
+            const blockLines = [value];
+            let nextIndex = index + 1;
+            while (nextIndex < lines.length) {
+              const nextLine = lines[nextIndex];
+              const nextTrimmed = nextLine.trim();
+              if (!nextTrimmed) {
+                blockLines.push('');
+                consumed.add(nextIndex);
+                nextIndex++;
+                continue;
+              }
+              const nextLabelMatch = nextLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
+              if (nextLabelMatch && (resolveDirectLabelKey(nextLabelMatch[1].trim()) || resolveLabelKey(nextLabelMatch[1].trim()))) break;
+              blockLines.push(cleanListLine(nextLine));
+              consumed.add(nextIndex);
+              nextIndex++;
+            }
+            const joinedValue = blockLines.map((part) => part.trim()).filter((part, partIndex) => part || partIndex === 0).join('\n').trim();
+            if (key === 'bodyInfo') {
+              appendUpdate(key, joinedValue, '、');
+            } else if (['prohibitions', 'commonOutfits', 'memo', 'faceReference', 'bodyLock', 'moodLock', 'baseIntro'].includes(key)) {
+              appendUpdate(key, joinedValue, '\n');
+            } else {
+              setValue(key, joinedValue, '\n');
+            }
+            consumed.add(index);
+            return;
+          }
+
+          const compactMeasurements = parseMeasurementValues(trimmed);
+          if (Object.keys(compactMeasurements).length) {
+            Object.entries(compactMeasurements).forEach(([measurementKey, measurementValue]) => { measurementState[measurementKey] = measurementValue; });
+            consumed.add(index);
+          }
         });
-        if (bodyParts.length) {
-          const baseBody = currentValue('bodyInfo');
-          const additions = bodyParts.filter((part) => !baseBody.includes(part));
-          updates.set('bodyInfo', [baseBody, ...additions].filter(Boolean).join('、'));
-        }
 
-        const headingIndex = (label) => lines.findIndex((line) => new RegExp(`^\\s*${label}\\s*[：:]`).test(line));
-        const nextBoundary = (start, tests) => {
-          for (let i = start + 1; i < lines.length; i++) if (tests.some((test) => test(lines[i]))) return i;
-          return lines.length;
-        };
-        const faceStart = lines.findIndex((line) => line.includes('透明感のある大きな瞳') && line.includes('やわらかな頬'));
-        if (faceStart >= 0) {
-          const faceEnd = nextBoundary(faceStart, [(line) => /体型は.+最重要固定要素/.test(line), (line) => line.includes('全体の印象は'), (line) => /^\s*(顔方向性|体型方向性|得意な衣装傾向|避けたい方向|撮影傾向)\s*[：:]/.test(line)]);
-          const faceText = lines.slice(faceStart, faceEnd).map((line) => line.trim()).filter(Boolean).join('\n');
-          appendUpdate('faceDirection', faceText); appendUpdate('faceReference', faceText); markRange(faceStart, faceEnd);
-        }
+        applyMeasurementState();
 
-        const bodyStart = lines.findIndex((line) => /体型は.+最重要固定要素/.test(line));
-        if (bodyStart >= 0) {
-          let bodyEnd = lines.findIndex((line, index) => index >= bodyStart && line.includes('オーバーレイヤーやシアー素材を使う場合も') && line.includes('砂時計シルエットが分かるようにする'));
-          bodyEnd = bodyEnd >= 0 ? bodyEnd + 1 : nextBoundary(bodyStart, [(line) => line.includes('全体の印象は'), (line) => /^\s*(顔方向性|体型方向性|得意な衣装傾向)\s*[：:]/.test(line)]);
-          const bodyText = lines.slice(bodyStart, bodyEnd).map((line) => line.trim()).filter(Boolean).join('\n');
-          appendUpdate('bodyLock', bodyText); markRange(bodyStart, bodyEnd);
-        }
-
-        const moodStart = lines.findIndex((line) => line.includes('全体の印象は') && line.includes('透明感'));
-        if (moodStart >= 0) {
-          const moodEnd = nextBoundary(moodStart, [(line) => /^\s*(顔方向性|体型方向性|得意な衣装傾向|避けたい方向|撮影傾向)\s*[：:]/.test(line)]);
-          const moodText = lines.slice(moodStart, moodEnd).map((line) => line.trim()).filter(Boolean).join('\n');
-          appendUpdate('overallMood', moodText); appendUpdate('moodLock', moodText); markRange(moodStart, moodEnd);
-        }
-
-        const faceHeading = headingIndex('顔方向性');
-        if (faceHeading >= 0) {
-          appendUpdate('faceReference', lines[faceHeading].replace(/^\s*顔方向性\s*[：:]\s*/, '')); consumed.add(faceHeading);
-        }
-        const bodyHeading = headingIndex('体型方向性');
-        if (bodyHeading >= 0) {
-          const value = lines[bodyHeading].replace(/^\s*体型方向性\s*[：:]\s*/, '');
-          appendUpdate('coreDefinition', value); appendUpdate('bodyLock', value); consumed.add(bodyHeading);
-        }
-
-        const sectionLines = (startLabel, endLabel) => {
-          const start = headingIndex(startLabel); if (start < 0) return [];
-          const end = endLabel ? headingIndex(endLabel) : lines.length;
-          const headerValue = lines[start].replace(new RegExp(`^\\s*${startLabel}\\s*[：:]\\s*`), '').trim();
-          const values = [headerValue, ...lines.slice(start + 1, end >= 0 ? end : lines.length).map(cleanListLine)].filter(Boolean);
-          markRange(start, end >= 0 ? end : lines.length);
-          return values;
-        };
-        const outfits = sectionLines('得意な衣装傾向', '避けたい方向');
-        if (outfits.length) appendUpdate('commonOutfits', outfits.join('\n'));
-        const avoid = sectionLines('避けたい方向', '撮影傾向');
-        if (avoid.length) appendUpdate('prohibitions', avoid.join('\n'));
-        const shooting = sectionLines('撮影傾向', null);
-        if (shooting.length) {
-          const moodLines = shooting.filter((line) => /実写寄り|自然光|スマホスナップ|ファッション誌|ストリートスナップ/.test(line));
-          const compositionLines = shooting.filter((line) => /構図|正面|斜め|振り返|全身|バストアップ|アップ|引き|視線|カメラ|アングル/.test(line) && !moodLines.includes(line));
-          const memoLines = shooting.filter((line) => !moodLines.includes(line) && !compositionLines.includes(line));
-          if (moodLines.length) appendUpdate('moodLock', moodLines.join('\n'));
-          if (compositionLines.length) appendUpdate('commonCompositions', compositionLines.join('\n'));
-          if (memoLines.length) appendUpdate('memo', memoLines.join('\n'));
-        }
-
-        if (faceStart >= 0 || bodyStart >= 0) appendUpdate('coreDefinition', '究極の砂時計体型。透明感と親しみやすさのある大人可愛い成人女性。');
-
-        const unclassified = lines.map((line, index) => ({ line:line.trim(), index }))
+        const unclassified = lines.map((line, index) => ({ line: line.trim(), index }))
           .filter(({ line, index }) => line && !consumed.has(index) && !/^[=＝\-ー_＿*＊#＃【】\s]+$/.test(line))
           .map(({ line }) => line);
-        if (unclassified.length) appendUpdate('unclassifiedMemo', unclassified.join('\n'));
+        if (unclassified.length) appendUpdate('unclassifiedMemo', unclassified.join('\n'), '\n');
 
         if (!updates.size) {
           $('bulkResult').textContent = '認識できるラベルがありませんでした。入力例を確認してください。';
@@ -567,10 +579,13 @@
           : `新しいキャラ${name ? `「${name}」` : ''}（反映内容を確認）`;
         $('bulkResult').style.color = 'var(--success)';
         const labelsByKey = Object.fromEntries(characterSchema.map((field) => [field.key, field.label]));
-        const appliedLabels = [...updates.keys()].map((key) => labelsByKey[key]);
-        $('bulkResult').innerHTML = `<div><b>反映：</b>${appliedLabels.map(escapeHtml).join('、')}</div><div style="margin-top:4px">${updates.size}項目を反映しました。内容を確認して「保存する」を押してください。</div><ul>${[...updates].map(([key, value]) => `<li><b>${escapeHtml(labelsByKey[key])}：</b>${escapeHtml(value)}</li>`).join('')}</ul>`;
+        const summaryFields = [...updates.entries()].filter(([key]) => key !== 'unclassifiedMemo');
+        const appliedLabels = summaryFields.map(([key]) => labelsByKey[key]).filter(Boolean);
+        const unclassifiedValue = updates.get('unclassifiedMemo') || '';
+        const detailList = summaryFields.map(([key, value]) => `<li><b>${escapeHtml(labelsByKey[key])}：</b>${escapeHtml(String(value).replace(/\n/g, ' / '))}</li>`).join('');
+        $('bulkResult').innerHTML = `<div><b>反映：</b>${appliedLabels.length ? appliedLabels.map(escapeHtml).join('、') : 'なし'}</div><div style="margin-top:4px"><b>未分類：</b>${unclassifiedValue ? escapeHtml(unclassifiedValue.replace(/\n/g, ' / ')) : 'なし'}</div>${detailList ? `<ul style="margin:6px 0 0 0;padding-left:18px">${detailList}</ul>` : ''}`;
         $('bulkResult').scrollIntoView({ behavior:'smooth', block:'start' });
-        notify(`${updates.size}項目を一括反映しました`);
+        notify(`${summaryFields.length}項目を一括反映しました`);
       }
 
       function clearCharacterBulkInput(message = '') {
