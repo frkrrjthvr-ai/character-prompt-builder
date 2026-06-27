@@ -107,6 +107,22 @@
     .example-notes { display: grid; gap: 6px; margin-bottom: 13px; color: var(--muted); font-size: 11px; }
     .example-notes b { color: var(--ink); }
     .card-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .character-images-section { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .character-image-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .image-card { padding: 12px; }
+    .image-thumb { display: block; width: 100%; aspect-ratio: 4 / 5; margin-bottom: 10px; border: 0; border-radius: 12px; overflow: hidden; padding: 0; background: #f2efe8; }
+    .image-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .image-card h4 { margin: 0 0 6px; font-size: 14px; }
+    .image-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; color: var(--muted); font-size: 10px; }
+    .image-card-meta .chip { font-size: 10px; }
+    .image-card-prompt { overflow: hidden; margin-bottom: 10px; color: #4a463f; font-size: 11px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+    .image-card-success { margin-bottom: 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .image-card-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .image-card-actions .btn-small { flex: 1; min-width: 0; }
+    .image-empty { padding: 20px; color: var(--muted); text-align: center; font-size: 12px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: 12px; }
+    .preview-image-wrap { width: 100%; border-radius: 12px; overflow: hidden; background: #f2efe8; }
+    .preview-image-wrap img { width: 100%; max-height: 70vh; object-fit: contain; display: block; }
+    .preview-meta { display: grid; gap: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
     .empty-state { grid-column: 1 / -1; padding: 70px 24px; color: var(--muted); text-align: center; }
     .empty-state b { display: block; margin-bottom: 7px; color: var(--ink); font-size: 17px; }
 
@@ -184,6 +200,10 @@
         <section class="panel editor">
           <div class="editor-head"><h3 id="characterEditorTitle">新しいキャラ</h3><div class="editor-actions"><button class="btn btn-danger" id="deleteCharacterBtn" type="button" hidden>削除</button><button class="btn btn-accent" id="saveAndNextCharacterBtn" type="submit" form="characterForm">保存して次のキャラを登録</button><button class="btn btn-primary" id="saveCharacterBtn" type="submit" form="characterForm">保存する</button></div></div>
           <form id="characterForm"><input id="characterId" type="hidden"><div class="form-grid" id="characterFields"></div></form>
+          <section class="character-images-section" aria-label="参照画像">
+            <div class="section-head"><div><h3>参照画像</h3><p>キャラごとの参考画像・プロンプト・成功ポイントを保存します。</p></div><div class="editor-actions"><input class="file-input" id="characterImageInput" type="file" accept="image/*" multiple><button class="btn btn-accent" id="addCharacterImageBtn" type="button">＋ 画像を追加</button></div></div>
+            <div class="character-image-list" id="characterImageList"></div>
+          </section>
         </section>
       </div>
     </section>
@@ -206,7 +226,7 @@
         <button class="btn btn-danger" id="deleteSettingTemplateBtn" type="button">削除</button>
       </section>
       <div class="builder-layout">
-        <section class="panel builder-form"><h3>今回の設定</h3><div class="builder-grid" id="builderFields"></div><div class="fixed-settings"><h4>固定文の使用</h4><p>出力モードに合わせた推奨状態から、必要な文だけ個別に切り替えられます。</p><div class="toggle-grid" id="fixedSettings"></div></div></section>
+        <section class="panel builder-form"><h3>今回の設定</h3><div class="builder-grid" id="builderFields"></div><div class="field wide"><label for="build_referencePrompt">参照プロンプト</label><textarea id="build_referencePrompt" placeholder="画像・成功例からコピーしたプロンプトを貼ると、最終プロンプト生成に反映されます"></textarea></div><div class="fixed-settings"><h4>固定文の使用</h4><p>出力モードに合わせた推奨状態から、必要な文だけ個別に切り替えられます。</p><div class="toggle-grid" id="fixedSettings"></div></div></section>
         <section class="panel prompt-preview"><h3>完成プロンプト</h3><div class="prompt-box" id="promptOutput"></div><div class="preview-actions"><button class="btn" id="copyPromptBtn" type="button">コピー</button><button class="btn btn-accent" id="saveExampleBtn" type="button">成功例へ保存</button></div></section>
       </div>
       <datalist id="outfitSuggestions"></datalist><datalist id="placeSuggestions"></datalist><datalist id="compositionSuggestions"></datalist>
@@ -222,6 +242,25 @@
     </section>
   </main>
 
+  <dialog id="characterImageDialog">
+    <div class="dialog-head"><h3>参照画像を編集</h3><button class="close" id="closeCharacterImageDialog" type="button" aria-label="閉じる">×</button></div>
+    <form class="dialog-body" id="characterImageForm">
+      <div class="dialog-grid">
+        <div class="field wide"><label for="imageTitle">画像タイトル</label><input id="imageTitle" maxlength="100"></div>
+        <div class="field wide"><label for="imagePrompt">使用プロンプト</label><textarea id="imagePrompt" maxlength="2000"></textarea></div>
+        <div class="field"><label for="imageSuccessPoint">成功ポイント</label><textarea id="imageSuccessPoint" maxlength="500"></textarea></div>
+        <div class="field"><label for="imageMemo">修正メモ</label><textarea id="imageMemo" maxlength="1000"></textarea></div>
+        <div class="field"><label for="imageModel">使用モデル</label><input id="imageModel" maxlength="60"></div>
+        <div class="field"><label for="imageAspectRatio">アスペクト比</label><input id="imageAspectRatio" maxlength="30"></div>
+        <div class="field"><label for="imageRating">成功度</label><select id="imageRating"><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select></div>
+      </div>
+      <div class="dialog-actions"><button class="btn" id="cancelCharacterImageDialog" type="button">キャンセル</button><button class="btn btn-primary" type="submit">保存する</button></div>
+    </form>
+  </dialog>
+  <dialog id="imagePreviewDialog" class="image-preview-dialog">
+    <div class="dialog-head"><h3>画像プレビュー</h3><button class="close" id="closeImagePreviewDialog" type="button" aria-label="閉じる">×</button></div>
+    <div class="dialog-body"><div class="preview-image-wrap"><img id="previewImage" alt=""></div><div class="preview-meta" id="previewImageMeta"></div></div>
+  </dialog>
   <dialog id="saveExampleDialog">
     <div class="dialog-head"><h3>成功例として保存</h3><button class="close" id="closeExampleDialog" type="button" aria-label="閉じる">×</button></div>
     <form class="dialog-body" id="saveExampleForm">
@@ -319,8 +358,39 @@
 よく使う構図：待ち合わせでこちらに気づく、歩きながら振り返る、正面寄りから少し左
 メモ：ユナは透明感と親しみやすさを優先`;
 
-      let characters = load(CHARACTER_KEY);
-      let examples = load(EXAMPLE_KEY);
+      function normalizeCharacterImage(image, fallbackTitle = '') {
+        const rating = Number(image?.rating);
+        return {
+          id: image?.id || uid(),
+          title: String(image?.title || fallbackTitle || '').trim(),
+          dataUrl: String(image?.dataUrl || '').trim(),
+          prompt: String(image?.prompt || '').trim(),
+          successPoint: String(image?.successPoint || '').trim(),
+          memo: String(image?.memo || '').trim(),
+          model: String(image?.model || '').trim(),
+          aspectRatio: String(image?.aspectRatio || '').trim(),
+          rating: Number.isFinite(rating) ? Math.max(1, Math.min(5, Math.round(rating))) : 5,
+          createdAt: String(image?.createdAt || today())
+        };
+      }
+
+      function migrateCharacters(rawCharacters) {
+        const source = Array.isArray(rawCharacters) ? rawCharacters : [];
+        const migrated = source.map((character, index) => {
+          const normalized = { ...character };
+          if (!Array.isArray(normalized.images)) normalized.images = [];
+          normalized.images = normalized.images.map((image) => normalizeCharacterImage(image, String(character?.name || `画像${index + 1}`))).filter((image) => image.dataUrl);
+          return normalized;
+        });
+        return migrated;
+      }
+
+      function migrateExamples(rawExamples) {
+        return Array.isArray(rawExamples) ? rawExamples : [];
+      }
+
+      let characters = migrateCharacters(load(CHARACTER_KEY));
+      let examples = migrateExamples(load(EXAMPLE_KEY));
       let settingTemplates = load(SETTING_TEMPLATE_KEY);
       let currentPrompt = '';
       let pendingCharacterImport = null;
@@ -340,6 +410,7 @@
           generatePrompt();
         }));
         fixedSettingSchema.forEach((setting) => $(`build_${setting.key}`).addEventListener('change', generatePrompt));
+        $('build_referencePrompt').addEventListener('input', generatePrompt);
       }
 
       function notify(message) {
@@ -617,9 +688,122 @@
         if (knownNames.includes(filterValue)) $('exampleCharacterFilter').value = filterValue;
       }
 
+      function getActiveCharacter() {
+        const id = $('characterId').value;
+        return characters.find((character) => character.id === id);
+      }
+
+      function readFileAsDataUrl(file) {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function resizeImageDataUrl(dataUrl, maxSize = 1200) {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const width = Math.max(1, Math.round(img.width * scale));
+            const height = Math.max(1, Math.round(img.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            context.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
+          };
+          img.onerror = () => resolve(dataUrl);
+          img.src = dataUrl;
+        });
+      }
+
+      async function createCharacterImagesFromFiles(files) {
+        const results = [];
+        for (const file of Array.from(files || [])) {
+          if (!file?.type?.startsWith('image/')) continue;
+          const dataUrl = await readFileAsDataUrl(file);
+          const resized = await resizeImageDataUrl(dataUrl);
+          results.push(normalizeCharacterImage({
+            id: uid(),
+            title: file.name.replace(/\.[^.]+$/, ''),
+            dataUrl: resized,
+            createdAt: today()
+          }, file.name.replace(/\.[^.]+$/, '')));
+        }
+        return results;
+      }
+
+      function renderCharacterImages() {
+        const character = getActiveCharacter();
+        const images = character?.images || [];
+        if (!character) {
+          $('characterImageList').innerHTML = '<div class="image-empty">まずはキャラを保存してから画像を追加してください。</div>';
+          return;
+        }
+        if (!images.length) {
+          $('characterImageList').innerHTML = '<div class="image-empty">まだ参照画像がありません。画像を追加して、プロンプトや成功ポイントを残しましょう。</div>';
+          return;
+        }
+        $('characterImageList').innerHTML = images.map((image) => `
+          <article class="panel image-card">
+            <button class="image-thumb" type="button" data-image-id="${image.id}" aria-label="${escapeHtml(image.title || '参照画像')}">
+              <img src="${image.dataUrl}" alt="${escapeHtml(image.title || '参照画像')}">
+            </button>
+            <h4>${escapeHtml(image.title || '無題')}</h4>
+            <div class="image-card-meta">
+              <span class="chip">★ ${image.rating || 5}</span>
+              ${image.model ? `<span class="chip">${escapeHtml(image.model)}</span>` : ''}
+              ${image.aspectRatio ? `<span class="chip">${escapeHtml(image.aspectRatio)}</span>` : ''}
+            </div>
+            <div class="image-card-prompt">${escapeHtml(image.prompt || '使用プロンプト未入力')}</div>
+            ${image.successPoint ? `<div class="image-card-success"><b>成功ポイント：</b>${escapeHtml(image.successPoint)}</div>` : ''}
+            <div class="image-card-actions">
+              <button class="btn btn-small" type="button" data-action="copy-prompt" data-image-id="${image.id}">プロンプトをコピー</button>
+              <button class="btn btn-small btn-accent" type="button" data-action="apply-prompt" data-image-id="${image.id}">使用プロンプトを使う</button>
+              <button class="btn btn-small" type="button" data-action="edit" data-image-id="${image.id}">編集</button>
+              <button class="btn btn-small btn-danger" type="button" data-action="delete" data-image-id="${image.id}">削除</button>
+            </div>
+          </article>`).join('');
+      }
+
+      function openCharacterImageDialog(imageId = null) {
+        const character = getActiveCharacter();
+        if (!character) return;
+        const image = character.images?.find((item) => item.id === imageId) || null;
+        $('characterImageForm').dataset.imageId = image?.id || '';
+        $('imageTitle').value = image?.title || '';
+        $('imagePrompt').value = image?.prompt || '';
+        $('imageSuccessPoint').value = image?.successPoint || '';
+        $('imageMemo').value = image?.memo || '';
+        $('imageModel').value = image?.model || '';
+        $('imageAspectRatio').value = image?.aspectRatio || '';
+        $('imageRating').value = String(image?.rating || 5);
+        $('characterImageDialog').showModal();
+      }
+
+      function closeCharacterImageDialog() {
+        $('characterImageDialog').close();
+        $('characterImageForm').reset();
+        delete $('characterImageForm').dataset.imageId;
+      }
+
+      function openImagePreview(imageId) {
+        const character = getActiveCharacter();
+        const image = character?.images?.find((item) => item.id === imageId);
+        if (!image) return;
+        $('previewImage').src = image.dataUrl;
+        $('previewImage').alt = image.title || '参照画像';
+        $('previewImageMeta').innerHTML = `<div><b>タイトル：</b>${escapeHtml(image.title || '無題')}</div><div><b>モデル：</b>${escapeHtml(image.model || '未指定')}</div><div><b>アスペクト比：</b>${escapeHtml(image.aspectRatio || '未指定')}</div><div><b>成功度：</b>${image.rating || 5}</div><div><b>使用プロンプト：</b>${escapeHtml(image.prompt || '未入力')}</div><div><b>成功ポイント：</b>${escapeHtml(image.successPoint || '未入力')}</div>`;
+        $('imagePreviewDialog').showModal();
+      }
+
       function newCharacter() {
         $('characterForm').reset(); $('characterId').value = '';
-        $('characterEditorTitle').textContent = '新しいキャラ'; $('deleteCharacterBtn').hidden = true; renderCharacters();
+        $('characterEditorTitle').textContent = '新しいキャラ'; $('deleteCharacterBtn').hidden = true; renderCharacters(); renderCharacterImages();
         $('char_name').focus();
       }
 
@@ -627,7 +811,7 @@
         const character = characters.find((item) => item.id === id); if (!character) return;
         $('characterId').value = character.id;
         characterSchema.forEach((field) => $(`char_${field.key}`).value = character[field.key] || '');
-        $('characterEditorTitle').textContent = `${character.name}を編集`; $('deleteCharacterBtn').hidden = false; renderCharacters();
+        $('characterEditorTitle').textContent = `${character.name}を編集`; $('deleteCharacterBtn').hidden = false; renderCharacters(); renderCharacterImages();
       }
 
       function applyOutputModePreset() {
@@ -902,6 +1086,7 @@
 
       function builderData() {
         const data = Object.fromEntries(builderSchema.map((field) => [field.key, $(`build_${field.key}`).value.trim()]));
+        data.referencePrompt = $('build_referencePrompt').value.trim();
         fixedSettingSchema.forEach((setting) => data[setting.key] = $(`build_${setting.key}`).checked);
         return data;
       }
@@ -922,6 +1107,7 @@
           ? [character.name ? `キャラクター名は${character.name}` : '', character.age ? `年齢は${character.age}` : '', character.height ? `身長は${character.height}` : '', character.weight ? `体重は${character.weight}` : '']
           : mode === 'standard' ? [character.name ? `キャラクター名は${character.name}` : '', character.age ? `年齢は${character.age}` : ''] : [];
         const basicSection = mergePromptText(core, baseIntro, identityFields.filter(Boolean).join('、'));
+        const referenceSection = data.referencePrompt ? mergePromptText(data.referencePrompt) : '';
 
         const hair = hairDescription(character);
         const face = mode === 'short' ? '' : faceDescription(character, data, mode);
@@ -953,6 +1139,7 @@
 
         currentPrompt = dedupePrompt([
           basicSection,
+          referenceSection,
           faceSection,
           bodySection,
           outfitSection,
@@ -966,13 +1153,24 @@
       function renderExamples() {
         const query = $('exampleSearch').value.trim().toLowerCase();
         const characterName = $('exampleCharacterFilter').value;
-        const visible = examples.filter((example) => example.title.toLowerCase().includes(query) && (characterName === 'all' || example.characterName === characterName));
-        $('exampleList').innerHTML = visible.length ? visible.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))).map((example) => `<article class="panel example-card">
+        const visibleExamples = examples.filter((example) => example.title.toLowerCase().includes(query) && (characterName === 'all' || example.characterName === characterName));
+        const visibleImages = characters.flatMap((character) => (character.images || []).map((image) => ({ ...image, characterId: character.id, characterName: character.name }))
+          .filter((image) => (image.title + image.prompt + image.successPoint + image.characterName).toLowerCase().includes(query) && (characterName === 'all' || image.characterName === characterName)));
+        const promptCards = visibleExamples.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))).map((example) => `<article class="panel example-card">
           <div class="example-top"><div><h3>${escapeHtml(example.title)}</h3><div class="chips"><span class="chip">${escapeHtml(example.characterName || 'キャラ不明')}</span>${example.outfit ? `<span class="chip">${escapeHtml(example.outfit)}</span>` : ''}${example.place ? `<span class="chip">${escapeHtml(example.place)}</span>` : ''}${example.composition ? `<span class="chip">${escapeHtml(example.composition)}</span>` : ''}</div></div><span class="example-date">${escapeHtml(example.savedAt)}</span></div>
           <div class="prompt-excerpt">${escapeHtml(example.prompt)}</div>
           <div class="example-notes">${example.good ? `<div><b>良かった点：</b>${escapeHtml(example.good)}</div>` : ''}${example.reproducibility ? `<div><b>再現性：</b>${escapeHtml(example.reproducibility)}</div>` : ''}${example.improvement ? `<div><b>次回：</b>${escapeHtml(example.improvement)}</div>` : ''}</div>
-          <div class="card-actions"><button class="btn btn-small recreate-btn" type="button" data-id="${example.id}">この成功例をベースに再作成</button><button class="btn btn-small btn-danger delete-example-btn" type="button" data-id="${example.id}">削除</button></div>
-        </article>`).join('') : '<div class="panel empty-state"><b>成功例はまだありません</b>プロンプト作成画面から保存できます。</div>';
+          <div class="card-actions"><button class="btn btn-small recreate-btn" type="button" data-id="${example.id}" data-type="example">この成功例をベースに再作成</button><button class="btn btn-small btn-danger delete-example-btn" type="button" data-id="${example.id}" data-type="example">削除</button></div>
+        </article>`).join('');
+        const imageCards = visibleImages.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map((image) => `<article class="panel example-card">
+          <div class="example-top"><div><h3>${escapeHtml(image.title || '無題')}</h3><div class="chips"><span class="chip">${escapeHtml(image.characterName || 'キャラ不明')}</span>${image.model ? `<span class="chip">${escapeHtml(image.model)}</span>` : ''}${image.aspectRatio ? `<span class="chip">${escapeHtml(image.aspectRatio)}</span>` : ''}</div></div><span class="example-date">${escapeHtml(image.createdAt)}</span></div>
+          <div class="image-thumb" style="margin-bottom: 12px; aspect-ratio: 4/3;"><img src="${image.dataUrl}" alt="${escapeHtml(image.title || '参照画像')}"></div>
+          <div class="prompt-excerpt">${escapeHtml(image.prompt || '使用プロンプト未入力')}</div>
+          <div class="example-notes">${image.successPoint ? `<div><b>成功ポイント：</b>${escapeHtml(image.successPoint)}</div>` : ''}${image.memo ? `<div><b>修正メモ：</b>${escapeHtml(image.memo)}</div>` : ''}</div>
+          <div class="card-actions"><button class="btn btn-small btn-accent use-prompt-btn" type="button" data-id="${image.id}" data-type="image" data-character-id="${image.characterId}">このプロンプトを使う</button><button class="btn btn-small" type="button" data-id="${image.id}" data-type="image" data-character-id="${image.characterId}">キャラ詳細へ</button></div>
+        </article>`).join('');
+        const cards = [promptCards, imageCards].filter(Boolean).join('');
+        $('exampleList').innerHTML = cards || '<div class="panel empty-state"><b>成功例はまだありません</b>プロンプト作成画面から保存できます。</div>';
       }
 
       async function copyText(text, message) {
@@ -1041,6 +1239,82 @@
       $('addCharacterBtn').addEventListener('click', newCharacter);
       $('characterSearch').addEventListener('input', renderCharacters);
       $('characterList').addEventListener('click', (event) => { const card = event.target.closest('[data-id]'); if (card) editCharacter(card.dataset.id); });
+      $('addCharacterImageBtn').addEventListener('click', () => $('characterImageInput').click());
+      $('characterImageInput').addEventListener('change', async (event) => {
+        const character = getActiveCharacter();
+        if (!character) { notify('先にキャラを保存してください'); event.target.value = ''; return; }
+        const files = event.target.files;
+        if (!files?.length) return;
+        const images = await createCharacterImagesFromFiles(files);
+        if (!images.length) return;
+        character.images = [...(character.images || []), ...images];
+        save(CHARACTER_KEY, characters);
+        renderCharacterImages();
+        notify(`${images.length}件の参照画像を追加しました`);
+        event.target.value = '';
+      });
+      $('characterImageList').addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) {
+          const previewButton = event.target.closest('.image-thumb');
+          if (previewButton?.dataset.imageId) openImagePreview(previewButton.dataset.imageId);
+          return;
+        }
+        const imageId = button.dataset.imageId;
+        const character = getActiveCharacter();
+        const image = character?.images?.find((item) => item.id === imageId);
+        if (!image) return;
+        if (button.dataset.action === 'copy-prompt') {
+          if (image.prompt) copyText(image.prompt, '使用プロンプトをコピーしました'); else notify('使用プロンプトが未入力です');
+        } else if (button.dataset.action === 'apply-prompt') {
+          $('build_referencePrompt').value = image.prompt || '';
+          generatePrompt();
+          switchTab('builderView');
+          notify('参照プロンプトをプロンプト作成欄へ反映しました');
+        } else if (button.dataset.action === 'edit') {
+          openCharacterImageDialog(imageId);
+        } else if (button.dataset.action === 'delete') {
+          if (!confirm('この参照画像を削除しますか？')) return;
+          character.images = character.images.filter((item) => item.id !== imageId);
+          save(CHARACTER_KEY, characters);
+          renderCharacterImages();
+          notify('参照画像を削除しました');
+        }
+      });
+      $('characterImageForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const character = getActiveCharacter();
+        if (!character) return;
+        const imageId = $('characterImageForm').dataset.imageId;
+        const existing = character.images?.find((item) => item.id === imageId);
+        const updated = normalizeCharacterImage({
+          ...existing,
+          id: existing?.id || uid(),
+          title: $('imageTitle').value.trim(),
+          prompt: $('imagePrompt').value.trim(),
+          successPoint: $('imageSuccessPoint').value.trim(),
+          memo: $('imageMemo').value.trim(),
+          model: $('imageModel').value.trim(),
+          aspectRatio: $('imageAspectRatio').value.trim(),
+          rating: $('imageRating').value,
+          createdAt: existing?.createdAt || today(),
+          dataUrl: existing?.dataUrl || ''
+        }, $('imageTitle').value.trim());
+        if (existing) {
+          character.images = character.images.map((item) => item.id === existing.id ? updated : item);
+        } else {
+          character.images = [...(character.images || []), updated];
+        }
+        save(CHARACTER_KEY, characters);
+        renderCharacterImages();
+        closeCharacterImageDialog();
+        notify('参照画像を保存しました');
+      });
+      $('closeCharacterImageDialog').addEventListener('click', closeCharacterImageDialog);
+      $('cancelCharacterImageDialog').addEventListener('click', closeCharacterImageDialog);
+      $('characterImageDialog').addEventListener('click', (event) => { if (event.target === $('characterImageDialog')) closeCharacterImageDialog(); });
+      $('closeImagePreviewDialog').addEventListener('click', () => $('imagePreviewDialog').close());
+      $('imagePreviewDialog').addEventListener('click', (event) => { if (event.target === $('imagePreviewDialog')) $('imagePreviewDialog').close(); });
       $('characterForm').addEventListener('submit', (event) => {
         event.preventDefault();
         const saveAndNext = event.submitter?.id === 'saveAndNextCharacterBtn';
@@ -1048,6 +1322,7 @@
         const existing = characters.find((character) => character.id === id) || {};
         const character = { ...existing, id, updatedAt: new Date().toISOString() };
         characterSchema.forEach((field) => character[field.key] = $(`char_${field.key}`).value.trim());
+        character.images = existing.images || [];
         const index = characters.findIndex((item) => item.id === id);
         if (index >= 0) characters[index] = character; else characters.push(character);
         save(CHARACTER_KEY, characters);
@@ -1091,6 +1366,23 @@
       $('exampleSearch').addEventListener('input', renderExamples); $('exampleCharacterFilter').addEventListener('change', renderExamples);
       $('exampleList').addEventListener('click', (event) => {
         const button = event.target.closest('button[data-id]'); if (!button) return;
+        if (button.dataset.type === 'image') {
+          const character = characters.find((item) => item.id === button.dataset.characterId);
+          if (!character) return;
+          if (button.classList.contains('use-prompt-btn')) {
+            const image = character.images?.find((item) => item.id === button.dataset.id);
+            if (!image) return;
+            $('build_referencePrompt').value = image.prompt || '';
+            generatePrompt();
+            switchTab('builderView');
+            notify('参照プロンプトをプロンプト作成欄へ反映しました');
+            return;
+          }
+          editCharacter(character.id);
+          switchTab('characterView');
+          notify('キャラ詳細へ移動しました');
+          return;
+        }
         const example = examples.find((item) => item.id === button.dataset.id); if (!example) return;
         if (button.classList.contains('delete-example-btn')) {
           if (!confirm(`「${example.title}」を削除しますか？`)) return;
