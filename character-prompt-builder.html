@@ -430,55 +430,77 @@
       }
 
       function applyBulkCharacterText() {
-        const text = $('bulkCharacterText').value.replace(/^\uFEFF/, '');
+        const safeTrim = (value) => String(value ?? '').trim();
+        const text = safeTrim($('bulkCharacterText').value).replace(/^\uFEFF/, '');
         const lines = text.split(/\r?\n/);
         const updates = new Map();
         const consumed = new Set();
-        const measurementState = {};
-        const currentValue = (key) => updates.has(key) ? updates.get(key) : $(`char_${key}`).value.trim();
-        const appendUpdate = (key, value, separator = '\n') => {
-          const clean = String(value || '').trim();
+        const visibleEntries = [];
+        const currentValue = (key) => {
+          if (updates.has(key)) return safeTrim(updates.get(key));
+          return '';
+        };
+        const addVisibleEntry = (label, key, value) => {
+          const clean = safeTrim(value);
           if (!clean) return;
+          if (!visibleEntries.some((entry) => entry.key === key && entry.label === label && entry.value === clean)) {
+            visibleEntries.push({ label, key, value: clean });
+          }
+        };
+        const addValue = (label, key, value, separator = '\n') => {
+          const clean = safeTrim(value);
+          if (!clean) return;
+          addVisibleEntry(label, key, clean);
           const current = currentValue(key);
           if (current.includes(clean)) return;
           updates.set(key, [current, clean].filter(Boolean).join(separator));
         };
-        const setValue = (key, value, separator = '\n') => {
-          const clean = String(value || '').trim();
+        const addBodyInfoLine = (value, label = '体型情報') => {
+          const clean = safeTrim(value);
           if (!clean) return;
-          if (updates.has(key)) {
-            const current = updates.get(key);
-            if (!current.includes(clean)) updates.set(key, [current, clean].filter(Boolean).join(separator));
-          } else {
-            updates.set(key, clean);
+          addVisibleEntry(label, 'bodyInfo', clean);
+          const current = currentValue('bodyInfo');
+          if (current.includes(clean)) return;
+          updates.set('bodyInfo', [current, clean].filter(Boolean).join('\n'));
+        };
+        const cleanListLine = (line) => safeTrim(line).replace(/^[-・●*▪︎■□]\s*/, '').trim();
+        const normalizeLabel = (value) => safeTrim(value).replace(/^[・●\-]\s*/, '').replace(/[　\s]/g, '').replace(/[：:]/g, '');
+        const cleanNameValue = (value) => {
+          const text = safeTrim(value);
+          if (!text) return '';
+          return safeTrim(text
+            .replace(/\s*(?:\d{1,3}歳|身長\d+(?:\.\d+)?\s*cm|体重\d+(?:\.\d+)?\s*kg|B\d+(?:\.\d+)?(?:[\/／.-]|$)W\d+(?:\.\d+)?(?:[\/／.-]|$)H\d+(?:\.\d+)?|B\d+(?:\.\d+)?W\d+(?:\.\d+)?H\d+(?:\.\d+)?|カップ[A-Za-z0-9]+|アンダー\d+(?:\.\d+)?\s*cm?)[\s　]*/giu, '')
+            .replace(/[、,\s　]+$/u, ''));
+        };
+        const collectContinuationLines = (index, stopPattern) => {
+          const collected = [];
+          let nextIndex = index + 1;
+          while (nextIndex < lines.length) {
+            const nextLine = lines[nextIndex];
+            const nextTrimmed = safeTrim(nextLine);
+            if (!nextTrimmed) break;
+            const nextLabelMatch = nextLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
+            if (nextLabelMatch && resolveFieldKey(nextLabelMatch[1].trim())) break;
+            if (stopPattern && stopPattern.test(nextTrimmed)) break;
+            collected.push(cleanListLine(nextLine));
+            consumed.add(nextIndex);
+            nextIndex++;
           }
+          return collected;
         };
-        const cleanListLine = (line) => line.trim().replace(/^[-・●*▪︎■□]\s*/, '').trim();
-        const markRange = (start, end) => { for (let i = start; i < end; i++) consumed.add(i); };
-        const normalizeLabel = (value) => String(value || '').trim().replace(/^[・●\-]\s*/, '').replace(/[　\s]/g, '').replace(/[：:]/g, '');
-        const resolveLabelKey = (value) => {
-          const normalized = normalizeLabel(value);
-          if (!normalized) return null;
-          return characterLabelMap[normalized] || characterLabelMap[normalized.replace(/\s+/g, '')] || null;
-        };
-        const directLabelMappings = {
-          '名前':'name', 'キャラ名':'name', '年齢':'age', '身長':'height', '体重':'weight',
+        const labelKeyMap = {
+          'キャラ名':'name', '名前':'name', '年齢':'age', '身長':'height', '体重':'weight',
           'スリーサイズ':'bodyInfo', 'サイズ':'bodyInfo', 'B':'bodyInfo', 'W':'bodyInfo', 'H':'bodyInfo',
           'カップ':'bodyInfo', 'アンダー':'bodyInfo', 'アンダーバスト':'bodyInfo', 'アンダーサイズ':'bodyInfo',
-          '髪型':'hairstyle', '髪色':'hairColor', '瞳':'faceReference', '目':'faceReference', '肌':'faceReference',
-          '顔立ち':'faceReference', '体型情報':'bodyInfo', '体型':'bodyInfo', '雰囲気':'overallMood', 'コンセプト':'overallMood',
-          '服装傾向':'commonOutfits', '服装':'commonOutfits', '固定したい特徴':'bodyLock', '固定特徴':'bodyLock',
-          'NG':'prohibitions', '禁止事項':'prohibitions', '参考プロンプト':'memo', 'メモ':'memo'
+          '髪型':'hairstyle', '髪色':'hairColor', '髪':'hairColor', '瞳':'faceReference', '目':'faceReference', '肌':'faceReference',
+          '顔立ち':'faceReference', '体型情報':'bodyInfo', '体型':'bodyInfo', '雰囲気':'overallMood', '全体の雰囲気':'overallMood',
+          'コンセプト':'overallMood', '服装傾向':'commonOutfits', '服装':'commonOutfits', '固定したい特徴':'bodyLock', '固定特徴':'bodyLock',
+          'NG':'prohibitions', '禁止事項':'prohibitions', 'メモ':'memo'
         };
-        const resolveDirectLabelKey = (value) => {
+        const resolveFieldKey = (value) => {
           const normalized = normalizeLabel(value);
           if (!normalized) return null;
-          return directLabelMappings[normalized] || directLabelMappings[normalized.replace(/\s+/g, '')] || null;
-        };
-        const setMeasurementValue = (label, value) => {
-          const clean = String(value || '').trim();
-          if (!clean) return;
-          measurementState[label] = clean.replace(/^[：:]/, '').trim();
+          return labelKeyMap[normalized] || labelKeyMap[normalized.replace(/\s+/g, '')] || null;
         };
         const parseMeasurementValues = (input) => {
           const text = String(input || '').trim();
@@ -496,76 +518,277 @@
             const match = text.match(regex);
             if (match) result[label] = match[1];
           });
+          const cupMatch = text.match(/(?:カップ|cup)\s*[:：]?\s*([A-Za-z0-9]+)/i);
+          if (cupMatch) result.cup = cupMatch[1].toUpperCase();
+          const underMatch = text.match(/(?:アンダー|アンダーバスト)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*cm?/i);
+          if (underMatch) result.under = underMatch[1];
           return result;
         };
-        const applyMeasurementState = () => {
-          const parts = ['B', 'W', 'H'].filter((key) => measurementState[key]).map((key) => `${key}${measurementState[key]}`);
-          if (parts.length) appendUpdate('bodyInfo', parts.join(' / '), '、');
+        const applyMeasurementValues = (value) => {
+          const parsed = parseMeasurementValues(value);
+          Object.entries(parsed).forEach(([measurementKey, measurementValue]) => {
+            if (measurementKey === 'B' || measurementKey === 'W' || measurementKey === 'H') {
+              addBodyInfoLine(`${measurementKey}：${measurementValue}`, measurementKey);
+            } else if (measurementKey === 'cup') {
+              addBodyInfoLine(`カップ：${measurementValue}`, 'カップ');
+            } else if (measurementKey === 'under') {
+              addBodyInfoLine(`アンダー：${measurementValue}cm`, 'アンダー');
+            }
+          });
+          return Object.keys(parsed).length > 0;
+        };
+        const processLabelBlock = (index, label, value) => {
+          const key = resolveFieldKey(label);
+          if (!key) return false;
+          const blockLines = [value];
+          let nextIndex = index + 1;
+          while (nextIndex < lines.length) {
+            const nextLine = lines[nextIndex];
+            const nextTrimmed = safeTrim(nextLine);
+            if (!nextTrimmed) {
+              blockLines.push('');
+              consumed.add(nextIndex);
+              nextIndex++;
+              continue;
+            }
+            const nextLabelMatch = nextLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
+            if (nextLabelMatch && resolveFieldKey(nextLabelMatch[1].trim())) break;
+            if (key === 'name') break;
+            blockLines.push(cleanListLine(nextLine));
+            consumed.add(nextIndex);
+            nextIndex++;
+          }
+          const joinedValue = blockLines.map((part) => part.trim()).filter((part, partIndex) => part || partIndex === 0).join('\n').trim();
+          if (key === 'name') {
+            const cleanedValue = cleanNameValue(joinedValue);
+            if (cleanedValue) addValue('キャラ名', key, cleanedValue, '\n');
+            consumed.add(index);
+            return true;
+          }
+          if (key === 'bodyInfo') {
+            const normalizedLabel = normalizeLabel(label);
+            if (['スリーサイズ', 'サイズ'].includes(normalizedLabel)) {
+              applyMeasurementValues(joinedValue);
+            } else if (['B', 'W', 'H'].includes(normalizedLabel)) {
+              addBodyInfoLine(`${normalizedLabel}：${joinedValue}`, normalizedLabel);
+            } else if (['カップ'].includes(normalizedLabel)) {
+              addBodyInfoLine(`カップ：${joinedValue}`, 'カップ');
+            } else if (['アンダー', 'アンダーバスト', 'アンダーサイズ'].includes(normalizedLabel)) {
+              addBodyInfoLine(`アンダー：${joinedValue}cm`, 'アンダー');
+            } else {
+              addBodyInfoLine(joinedValue, '体型情報');
+            }
+          } else if (key === 'faceReference') {
+            addValue(label, key, joinedValue, '\n');
+          } else if (key === 'commonOutfits') {
+            addValue('服装傾向', key, joinedValue, '\n');
+          } else if (key === 'bodyLock') {
+            addValue('固定したい特徴', key, joinedValue, '\n');
+          } else if (key === 'overallMood') {
+            addValue('雰囲気', key, joinedValue, '\n');
+          } else if (key === 'prohibitions') {
+            addValue('NG', key, joinedValue, '\n');
+          } else if (key === 'memo') {
+            addValue('メモ', key, joinedValue, '\n');
+          } else {
+            addValue(label, key, joinedValue, '\n');
+          }
+          consumed.add(index);
+          return true;
         };
 
         lines.forEach((line, index) => {
-          const trimmed = line.trim();
+          const trimmed = safeTrim(line);
           if (!trimmed) return;
-          const labelMatch = line.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
+          const labelMatch = safeTrim(line).match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
           if (labelMatch) {
-            const label = labelMatch[1].trim();
-            const normalizedLabel = normalizeLabel(label);
-            const value = labelMatch[2].trim();
-            if (['スリーサイズ', 'サイズ'].includes(normalizedLabel)) {
-              const parsed = parseMeasurementValues(value);
-              Object.entries(parsed).forEach(([measurementKey, measurementValue]) => { measurementState[measurementKey] = measurementValue; });
-              consumed.add(index);
-              return;
-            }
-            if (['B', 'W', 'H'].includes(normalizedLabel)) {
-              setMeasurementValue(normalizedLabel, value);
-              consumed.add(index);
-              return;
-            }
-            const key = resolveDirectLabelKey(label) || resolveLabelKey(label);
-            if (!key) return;
-            const blockLines = [value];
-            let nextIndex = index + 1;
-            while (nextIndex < lines.length) {
-              const nextLine = lines[nextIndex];
-              const nextTrimmed = nextLine.trim();
-              if (!nextTrimmed) {
-                blockLines.push('');
-                consumed.add(nextIndex);
-                nextIndex++;
-                continue;
-              }
-              const nextLabelMatch = nextLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
-              if (nextLabelMatch && (resolveDirectLabelKey(nextLabelMatch[1].trim()) || resolveLabelKey(nextLabelMatch[1].trim()))) break;
-              blockLines.push(cleanListLine(nextLine));
-              consumed.add(nextIndex);
-              nextIndex++;
-            }
-            const joinedValue = blockLines.map((part) => part.trim()).filter((part, partIndex) => part || partIndex === 0).join('\n').trim();
-            if (key === 'bodyInfo') {
-              appendUpdate(key, joinedValue, '、');
-            } else if (['prohibitions', 'commonOutfits', 'memo', 'faceReference', 'bodyLock', 'moodLock', 'baseIntro'].includes(key)) {
-              appendUpdate(key, joinedValue, '\n');
-            } else {
-              setValue(key, joinedValue, '\n');
-            }
-            consumed.add(index);
+            const label = safeTrim(labelMatch[1]);
+            if (processLabelBlock(index, label, safeTrim(labelMatch[2]))) return;
             return;
           }
 
-          const compactMeasurements = parseMeasurementValues(trimmed);
-          if (Object.keys(compactMeasurements).length) {
-            Object.entries(compactMeasurements).forEach(([measurementKey, measurementValue]) => { measurementState[measurementKey] = measurementValue; });
-            consumed.add(index);
+          let parsedNatural = false;
+          if (!parsedNatural) {
+            const introMatch = trimmed.match(/^(?:このキャラクターでは|このキャラクターは|このキャラクターが|このキャラクターの)/u);
+            if (introMatch) {
+              parsedNatural = true;
+            }
           }
+          if (!parsedNatural) {
+            const nameWithAgeMatch = trimmed.match(/^([一-龯ぁ-んァ-ヶー々・]{1,12})は\s*(\d{1,3})歳(?:です|。|$)/u);
+            if (nameWithAgeMatch && !currentValue('name')) {
+              const candidate = nameWithAgeMatch[1];
+              if (!/^(髪|瞳|服装|体型|雰囲気|この|キャラクター|髪型|髪色|目|肌|顔|顔立ち|全体|体|身体)$/.test(candidate)) {
+                addValue('キャラ名', 'name', candidate);
+                addValue('年齢', 'age', `${nameWithAgeMatch[2]}歳`);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const nameMatch = trimmed.match(/^([一-龯ぁ-んァ-ヶー々・]{1,12})は(?:([。！？、\s]|$))/u);
+            if (nameMatch && !currentValue('name')) {
+              const candidate = nameMatch[1];
+              if (!/^(髪|瞳|服装|体型|雰囲気|この|キャラクター|髪型|髪色|目|肌|顔|顔立ち|全体|体|身体)$/.test(candidate)) {
+                addValue('キャラ名', 'name', candidate);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const ageMatch = trimmed.match(/(?:^|[^\d])(\d{1,3})歳/);
+            if (ageMatch && !currentValue('age')) {
+              addValue('年齢', 'age', `${ageMatch[1]}歳`);
+              parsedNatural = true;
+            }
+          }
+          if (!parsedNatural) {
+            const heightMatch = trimmed.match(/身長\s*[:：]?\s*(\d+(?:\.\d+)?)\s*cm/i);
+            const weightMatch = trimmed.match(/体重\s*[:：]?\s*(\d+(?:\.\d+)?)\s*kg/i);
+            if ((heightMatch && !currentValue('height')) || (weightMatch && !currentValue('weight'))) {
+              if (heightMatch) addValue('身長', 'height', `${heightMatch[1]}cm`);
+              if (weightMatch) addValue('体重', 'weight', `${weightMatch[1]}kg`);
+              parsedNatural = true;
+            }
+          }
+          if (!parsedNatural) {
+            const measurementLine = trimmed.match(/(?:B|W|H)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
+            if (measurementLine && !currentValue('bodyInfo')) {
+              addBodyInfoLine(`${measurementLine[0].replace(/\s+/g, '')}`, measurementLine[0].charAt(0));
+              parsedNatural = true;
+            }
+          }
+          if (!parsedNatural) {
+            const hairColorMatch = trimmed.match(/髪(?:は|の|に関しては)?\s*([^。\n]+?)(?:で|が|を|、|。|$)/u);
+            if (hairColorMatch && !currentValue('hairColor')) {
+              const value = String(hairColorMatch[1] || '').replace(/(?:色|髪型|髪)/g, '').trim();
+              if (value) {
+                addValue('髪色', 'hairColor', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const hairstyleMatch = trimmed.match(/髪型(?:は|：|:)?\s*([^。\n]+?)(?:で|が|を|、|。|$)/u);
+            if (hairstyleMatch && !currentValue('hairstyle')) {
+              const value = String(hairstyleMatch[1] || '').trim();
+              if (value) {
+                addValue('髪型', 'hairstyle', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const eyeMatch = trimmed.match(/瞳(?:は|：|:)?\s*([^。\n]+?)(?:で|が|を|、|。|$)/u);
+            if (eyeMatch) {
+              const value = String(eyeMatch[1] || '').trim();
+              if (value) {
+                addValue('瞳', 'faceReference', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const skinMatch = trimmed.match(/肌(?:は|：|:)?\s*([^。\n]+?)(?:で|が|を|、|。|$)/u);
+            if (skinMatch) {
+              const value = String(skinMatch[1] || '').trim();
+              if (value) {
+                addValue('肌', 'faceReference', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const faceMatch = trimmed.match(/顔立ち(?:は|：|:)?\s*([^。\n]+?)(?:で|が|を|、|。|$)/u);
+            if (faceMatch) {
+              const value = String(faceMatch[1] || '').trim();
+              if (value) {
+                addValue('顔立ち', 'faceReference', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const bodyMatch = trimmed.match(/(?:体型|体型情報)(?:は|が|で|として|：|:)?\s*([^。\n]+?)(?:。|$)/u);
+            if (bodyMatch) {
+              const bodyText = safeTrim(bodyMatch[1])
+                .replace(/^全体として/u, '')
+                .replace(/^として/u, '')
+                .replace(/^かなり/u, '')
+                .replace(/^非常に/u, '')
+                .replace(/^とても/u, '')
+                .replace(/^気質として/u, '')
+                .replace(/^印象として/u, '')
+                .replace(/^特に/u, '')
+                .replace(/^[、\s]+/u, '')
+                .replace(/^で/u, '')
+                .replace(/胸よりも/u, '')
+                .replace(/が印象に残る.*$/u, '')
+                .replace(/[、\s]+$/g, '');
+              if (bodyText) {
+                addBodyInfoLine(bodyText, '体型情報');
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const outfitMatch = trimmed.match(/服装(?:は|：|:)?\s*([^。\n]+?)(?:。|$)/u);
+            if (outfitMatch) {
+              const continuationLines = collectContinuationLines(index, /(?:このキャラクターでは|雰囲気|固定したい特徴|NG|禁止事項|メモ)/u);
+              const value = [safeTrim(outfitMatch[1]), ...continuationLines].filter(Boolean).join('\n');
+              if (value) {
+                addValue('服装傾向', 'commonOutfits', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const moodMatch = trimmed.match(/(.+?)雰囲気/u) || trimmed.match(/雰囲気(?:は|：|:)?\s*([^。\n]+?)(?:。|$)/u);
+            if (moodMatch) {
+              const value = safeTrim(moodMatch[1] || moodMatch[2] || '').replace(/[、\s]+$/u, '');
+              if (value) {
+                addValue('雰囲気', 'overallMood', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const fixedMatch = trimmed.match(/固定したい特徴(?:は|：|:)?\s*([^。\n]+?)(?:。|$)/u);
+            if (fixedMatch) {
+              const value = String(fixedMatch[1] || '').trim();
+              if (value) {
+                addValue('固定したい特徴', 'bodyLock', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const prohibitionMatch = trimmed.match(/(?:NG|禁止事項)(?:は|：|:)?\s*([^。\n]+?)(?:。|$)/u);
+            if (prohibitionMatch) {
+              const value = String(prohibitionMatch[1] || '').trim();
+              if (value) {
+                addValue('NG', 'prohibitions', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (!parsedNatural) {
+            const memoMatch = trimmed.match(/メモ(?:は|：|:)?\s*([^。\n]+?)(?:。|$)/u);
+            if (memoMatch) {
+              const value = String(memoMatch[1] || '').trim();
+              if (value) {
+                addValue('メモ', 'memo', value);
+                parsedNatural = true;
+              }
+            }
+          }
+          if (parsedNatural) consumed.add(index);
         });
 
-        applyMeasurementState();
-
         const unclassified = lines.map((line, index) => ({ line: line.trim(), index }))
-          .filter(({ line, index }) => line && !consumed.has(index) && !/^[=＝\-ー_＿*＊#＃【】\s]+$/.test(line))
+          .filter(({ line, index }) => line && !consumed.has(index) && !/^[=＝\-ー_＿*＊#＃【】\s]+$/.test(line) && !/^(このキャラクターでは|このキャラクターは|このキャラクターが|このキャラクターの)/u.test(line))
           .map(({ line }) => line);
-        if (unclassified.length) appendUpdate('unclassifiedMemo', unclassified.join('\n'), '\n');
+        if (unclassified.length) addValue('未分類', 'unclassifiedMemo', unclassified.join('\n'), '\n');
 
         if (!updates.size) {
           $('bulkResult').textContent = '認識できるラベルがありませんでした。入力例を確認してください。';
@@ -578,14 +801,12 @@
           ? `${name || 'キャラ'}を編集（反映内容を確認）`
           : `新しいキャラ${name ? `「${name}」` : ''}（反映内容を確認）`;
         $('bulkResult').style.color = 'var(--success)';
-        const labelsByKey = Object.fromEntries(characterSchema.map((field) => [field.key, field.label]));
-        const summaryFields = [...updates.entries()].filter(([key]) => key !== 'unclassifiedMemo');
-        const appliedLabels = summaryFields.map(([key]) => labelsByKey[key]).filter(Boolean);
+        const appliedLabels = visibleEntries.map((entry) => entry.label);
         const unclassifiedValue = updates.get('unclassifiedMemo') || '';
-        const detailList = summaryFields.map(([key, value]) => `<li><b>${escapeHtml(labelsByKey[key])}：</b>${escapeHtml(String(value).replace(/\n/g, ' / '))}</li>`).join('');
+        const detailList = visibleEntries.map((entry) => `<li><b>${escapeHtml(entry.label)}：</b>${escapeHtml(String(entry.value).replace(/\n/g, ' / '))}</li>`).join('');
         $('bulkResult').innerHTML = `<div><b>反映：</b>${appliedLabels.length ? appliedLabels.map(escapeHtml).join('、') : 'なし'}</div><div style="margin-top:4px"><b>未分類：</b>${unclassifiedValue ? escapeHtml(unclassifiedValue.replace(/\n/g, ' / ')) : 'なし'}</div>${detailList ? `<ul style="margin:6px 0 0 0;padding-left:18px">${detailList}</ul>` : ''}`;
         $('bulkResult').scrollIntoView({ behavior:'smooth', block:'start' });
-        notify(`${summaryFields.length}項目を一括反映しました`);
+        notify(`${visibleEntries.length}項目を一括反映しました`);
       }
 
       function clearCharacterBulkInput(message = '') {
