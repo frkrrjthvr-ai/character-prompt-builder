@@ -488,19 +488,31 @@
           }
           return collected;
         };
-        const labelKeyMap = {
-          'キャラ名':'name', '名前':'name', '年齢':'age', '身長':'height', '体重':'weight',
-          'スリーサイズ':'bodyInfo', 'サイズ':'bodyInfo', 'B':'bodyInfo', 'W':'bodyInfo', 'H':'bodyInfo',
-          'カップ':'bodyInfo', 'アンダー':'bodyInfo', 'アンダーバスト':'bodyInfo', 'アンダーサイズ':'bodyInfo',
-          '髪型':'hairstyle', '髪色':'hairColor', '髪':'hairColor', '瞳':'faceReference', '目':'faceReference', '肌':'faceReference',
-          '顔立ち':'faceReference', '体型情報':'bodyInfo', '体型':'bodyInfo', '雰囲気':'overallMood', '全体の雰囲気':'overallMood',
-          'コンセプト':'overallMood', '服装傾向':'commonOutfits', '服装':'commonOutfits', '固定したい特徴':'bodyLock', '固定特徴':'bodyLock',
-          'NG':'prohibitions', '禁止事項':'prohibitions', 'メモ':'memo'
-        };
+        const knownLabelEntries = [
+          ['キャラ名','name'], ['名前','name'], ['年齢','age'], ['身長','height'], ['体重','weight'],
+          ['スリーサイズ','bodyInfo'], ['サイズ','bodyInfo'], ['B','bodyInfo'], ['W','bodyInfo'], ['H','bodyInfo'],
+          ['カップ','bodyInfo'], ['アンダー','bodyInfo'], ['アンダーバスト','bodyInfo'], ['アンダーサイズ','bodyInfo'],
+          ['髪型','hairstyle'], ['髪色','hairColor'], ['髪','hairColor'], ['瞳','faceReference'], ['目','faceReference'], ['肌','faceReference'],
+          ['顔立ち','faceReference'], ['顔の方向性','faceReference'], ['顔の基準説明','faceReference'], ['体型情報','bodyInfo'], ['体型','bodyInfo'],
+          ['雰囲気','overallMood'], ['全体の雰囲気','overallMood'], ['コンセプト','overallMood'], ['服装傾向','commonOutfits'], ['服装','commonOutfits'],
+          ['固定したい特徴','bodyLock'], ['固定特徴','bodyLock'], ['体型固定文','bodyLock'], ['雰囲気固定文','moodLock'], ['ベース導入文','baseIntro'],
+          ['コア定義','coreDefinition'], ['NG','prohibitions'], ['禁止事項','prohibitions'], ['メモ','memo'], ['参考プロンプト','memo'],
+          ['よく使う衣装','commonOutfits'], ['よく使う場所','memo'], ['よく使う構図','memo']
+        ];
+        const labelKeyMap = Object.fromEntries(knownLabelEntries);
         const resolveFieldKey = (value) => {
           const normalized = normalizeLabel(value);
           if (!normalized) return null;
           return labelKeyMap[normalized] || labelKeyMap[normalized.replace(/\s+/g, '')] || null;
+        };
+        const getLabelLineInfo = (line) => {
+          const trimmedLine = safeTrim(line);
+          const match = trimmedLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
+          if (!match) return null;
+          const label = safeTrim(match[1]);
+          const key = resolveFieldKey(label);
+          if (!key) return null;
+          return { label, key, value: safeTrim(match[2]) };
         };
         const parseMeasurementValues = (input) => {
           const text = String(input || '').trim();
@@ -537,33 +549,13 @@
           });
           return Object.keys(parsed).length > 0;
         };
-        const processLabelBlock = (index, label, value) => {
-          const key = resolveFieldKey(label);
-          if (!key) return false;
-          const blockLines = [value];
-          let nextIndex = index + 1;
-          while (nextIndex < lines.length) {
-            const nextLine = lines[nextIndex];
-            const nextTrimmed = safeTrim(nextLine);
-            if (!nextTrimmed) {
-              blockLines.push('');
-              consumed.add(nextIndex);
-              nextIndex++;
-              continue;
-            }
-            const nextLabelMatch = nextLine.match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
-            if (nextLabelMatch && resolveFieldKey(nextLabelMatch[1].trim())) break;
-            if (key === 'name') break;
-            blockLines.push(cleanListLine(nextLine));
-            consumed.add(nextIndex);
-            nextIndex++;
-          }
-          const joinedValue = blockLines.map((part) => part.trim()).filter((part, partIndex) => part || partIndex === 0).join('\n').trim();
+        const applyResolvedLabelValue = (label, key, value) => {
+          const joinedValue = safeTrim(value);
+          if (!joinedValue) return false;
           if (key === 'name') {
             const cleanedValue = cleanNameValue(joinedValue);
             if (cleanedValue) addValue('キャラ名', key, cleanedValue, '\n');
-            consumed.add(index);
-            return true;
+            return Boolean(cleanedValue);
           }
           if (key === 'bodyInfo') {
             const normalizedLabel = normalizeLabel(label);
@@ -578,7 +570,9 @@
             } else {
               addBodyInfoLine(joinedValue, '体型情報');
             }
-          } else if (key === 'faceReference') {
+            return true;
+          }
+          if (key === 'faceReference') {
             addValue(label, key, joinedValue, '\n');
           } else if (key === 'commonOutfits') {
             addValue('服装傾向', key, joinedValue, '\n');
@@ -593,13 +587,58 @@
           } else {
             addValue(label, key, joinedValue, '\n');
           }
-          consumed.add(index);
           return true;
+        };
+        const processLabelBlock = (index, label, value) => {
+          const key = resolveFieldKey(label);
+          if (!key) return false;
+          const blockLines = [value];
+          let nextIndex = index + 1;
+          while (nextIndex < lines.length) {
+            const nextLine = lines[nextIndex];
+            const nextTrimmed = safeTrim(nextLine);
+            if (!nextTrimmed) {
+              const nextKnownLabelIndex = lines.slice(nextIndex + 1).findIndex((candidate) => getLabelLineInfo(candidate));
+              if (nextKnownLabelIndex >= 0) break;
+              blockLines.push('');
+              consumed.add(nextIndex);
+              nextIndex++;
+              continue;
+            }
+            if (getLabelLineInfo(nextLine)) break;
+            if (key === 'name') break;
+            blockLines.push(cleanListLine(nextLine));
+            consumed.add(nextIndex);
+            nextIndex++;
+          }
+          const joinedValue = blockLines.map((part) => part.trim()).filter((part, partIndex) => part || partIndex === 0).join('\n').trim();
+          const applied = applyResolvedLabelValue(label, key, joinedValue);
+          consumed.add(index);
+          return applied;
+        };
+        const parseInlineLabelEntries = (line) => {
+          const entries = [];
+          const pattern = /(^|[、，\s　])([^：:]+?)\s*[：:]\s*([^\n、。]+?)(?=(?:[、，\s　]|$|。))/gu;
+          let match = pattern.exec(line);
+          while (match) {
+            const label = safeTrim(match[2]);
+            const value = safeTrim(match[3]);
+            const key = resolveFieldKey(label);
+            if (key && value) entries.push({ label, key, value });
+            match = pattern.exec(line);
+          }
+          return entries;
         };
 
         lines.forEach((line, index) => {
           const trimmed = safeTrim(line);
           if (!trimmed) return;
+          const inlineLabelEntries = parseInlineLabelEntries(trimmed);
+          if (inlineLabelEntries.length) {
+            inlineLabelEntries.forEach((entry) => applyResolvedLabelValue(entry.label, entry.key, entry.value));
+            consumed.add(index);
+            return;
+          }
           const labelMatch = safeTrim(line).match(/^\s*([^：:]+?)\s*[：:]\s*(.*)$/u);
           if (labelMatch) {
             const label = safeTrim(labelMatch[1]);
