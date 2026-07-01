@@ -108,6 +108,10 @@
     .example-notes b { color: var(--ink); }
     .card-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
     .character-images-section { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .image-upload-status { margin-top: 10px; }
+    .image-upload-status-card { padding: 10px 12px; border: 1px solid #f0d8de; border-radius: 12px; background: #fff8fa; color: var(--ink); }
+    .image-upload-status-card strong { display: block; margin-bottom: 7px; font-size: 11px; color: var(--danger); }
+    .image-upload-status-card .chip { margin: 2px 4px 2px 0; }
     .character-image-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .image-card { padding: 12px; }
     .image-thumb { display: block; width: 100%; aspect-ratio: 4 / 5; margin-bottom: 10px; border: 0; border-radius: 12px; overflow: hidden; padding: 0; background: #f2efe8; }
@@ -200,8 +204,9 @@
         <section class="panel editor">
           <div class="editor-head"><h3 id="characterEditorTitle">新しいキャラ</h3><div class="editor-actions"><button class="btn btn-danger" id="deleteCharacterBtn" type="button" hidden>削除</button><button class="btn btn-accent" id="saveAndNextCharacterBtn" type="submit" form="characterForm">保存して次のキャラを登録</button><button class="btn btn-primary" id="saveCharacterBtn" type="submit" form="characterForm">保存する</button></div></div>
           <form id="characterForm"><input id="characterId" type="hidden"><div class="form-grid" id="characterFields"></div></form>
-          <section class="character-images-section" aria-label="参照画像">
+          <section class="character-images-section" id="characterImageSection" aria-label="参照画像">
             <div class="section-head"><div><h3>参照画像</h3><p>キャラごとの参考画像・プロンプト・成功ポイントを保存します。</p></div><div class="editor-actions"><input class="file-input" id="characterImageInput" type="file" accept="image/*" multiple><button class="btn btn-accent" id="addCharacterImageBtn" type="button">＋ 画像を追加</button></div></div>
+            <div class="image-upload-status" id="imageUploadStatus" hidden></div>
             <div class="character-image-list" id="characterImageList"></div>
           </section>
         </section>
@@ -293,6 +298,12 @@
       const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
       const load = (key) => { try { const value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value : []; } catch { return []; } };
       const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+      let pendingFailedImageUploads = [];
+      const getDisplayImageName = (image) => {
+        if (!image) return '無題';
+        const title = String(image.title || image.name || image.displayName || '').trim();
+        return title || '無題';
+      };
       const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
 
       const characterSchema = [
@@ -977,7 +988,7 @@
         });
       }
 
-      function resizeImageDataUrl(dataUrl, maxSize = 1200) {
+      function resizeImageDataUrl(dataUrl, maxSize = 1200, quality = 0.85) {
         return new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
@@ -989,7 +1000,7 @@
             canvas.height = height;
             const context = canvas.getContext('2d');
             context.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.9));
+            resolve(canvas.toDataURL('image/jpeg', quality));
           };
           img.onerror = () => resolve(dataUrl);
           img.src = dataUrl;
@@ -1001,7 +1012,7 @@
         for (const file of Array.from(files || [])) {
           if (!file?.type?.startsWith('image/')) continue;
           const dataUrl = await readFileAsDataUrl(file);
-          const resized = await resizeImageDataUrl(dataUrl);
+          const resized = await resizeImageDataUrl(dataUrl, 1200, 0.85);
           results.push(normalizeCharacterImage({
             id: uid(),
             title: file.name.replace(/\.[^.]+$/, ''),
@@ -1012,7 +1023,109 @@
         return results;
       }
 
+      function trySaveCharacters(snapshotCharacters) {
+        try {
+          save(CHARACTER_KEY, snapshotCharacters);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      async function addCharacterImagesFromFiles(files) {
+        const character = getActiveCharacter();
+        if (!character) return { saved: 0, failed: 0, pending: 0 };
+        const imageFiles = Array.from(files || []).filter((file) => file?.type?.startsWith('image/'));
+        if (!imageFiles.length) return { saved: 0, failed: 0, pending: 0 };
+
+        const processedImages = [];
+        for (const file of imageFiles) {
+          const dataUrl = await readFileAsDataUrl(file);
+          const resized = await resizeImageDataUrl(dataUrl, 1200, 0.85);
+          processedImages.push(normalizeCharacterImage({
+            id: uid(),
+            title: file.name.replace(/\.[^.]+$/, ''),
+            dataUrl: resized,
+            createdAt: today()
+          }, file.name.replace(/\.[^.]+$/, '')));
+        }
+
+        const characterIndex = characters.findIndex((item) => item.id === character.id);
+        if (characterIndex < 0) return { saved: 0, failed: imageFiles.length, pending: imageFiles.length, failedNames: imageFiles.map((file) => file.name) };
+
+        let saved = 0;
+        let failed = 0;
+        let failedNames = [];
+        let currentImages = [...(characters[characterIndex].images || [])];
+        for (const [index, image] of processedImages.entries()) {
+          const trialImages = [...currentImages, image];
+          const trialCharacters = characters.map((item, innerIndex) => innerIndex === characterIndex ? { ...item, images: trialImages } : item);
+          if (!trySaveCharacters(trialCharacters)) {
+            const pendingImages = processedImages.slice(index).map((item, itemIndex) => ({
+              ...item,
+              name: imageFiles[index + itemIndex]?.name || item.title || '無題',
+              displayName: imageFiles[index + itemIndex]?.name || item.title || '無題',
+              createdAt: item.createdAt || today()
+            }));
+            pendingFailedImageUploads = [...pendingFailedImageUploads, ...pendingImages];
+            failedNames = pendingImages.map((item) => item.displayName || item.name || '無題');
+            failed = pendingImages.length;
+            break;
+          }
+          currentImages = trialImages;
+          characters[characterIndex] = { ...characters[characterIndex], images: currentImages };
+          saved++;
+        }
+        return { saved, failed, pending: pendingFailedImageUploads.length, failedNames };
+      }
+
+      async function retryPendingFailedImages() {
+        const character = getActiveCharacter();
+        if (!character || !pendingFailedImageUploads.length) return { saved: 0, failed: 0, pending: 0 };
+        const characterIndex = characters.findIndex((item) => item.id === character.id);
+        if (characterIndex < 0) return { saved: 0, failed: pendingFailedImageUploads.length, pending: pendingFailedImageUploads.length };
+
+        const remainingUploads = [...pendingFailedImageUploads];
+        let saved = 0;
+        let failed = 0;
+        let currentImages = [...(characters[characterIndex].images || [])];
+        const nextPending = [];
+        for (const image of remainingUploads) {
+          const trialImages = [...currentImages, normalizeCharacterImage(image, getDisplayImageName(image))];
+          const trialCharacters = characters.map((item, innerIndex) => innerIndex === characterIndex ? { ...item, images: trialImages } : item);
+          if (!trySaveCharacters(trialCharacters)) {
+            failed++;
+            nextPending.push(image);
+            break;
+          }
+          currentImages = trialImages;
+          characters[characterIndex] = { ...characters[characterIndex], images: currentImages };
+          saved++;
+        }
+        pendingFailedImageUploads = [...nextPending, ...remainingUploads.slice(saved + failed)];
+        return { saved, failed, pending: pendingFailedImageUploads.length };
+      }
+
+      function renderImageUploadStatus() {
+        const statusEl = $('imageUploadStatus');
+        if (!statusEl) return;
+        const visibleEntries = pendingFailedImageUploads.filter(Boolean).slice(0, 8);
+        if (!visibleEntries.length) {
+          statusEl.innerHTML = '';
+          statusEl.hidden = true;
+          return;
+        }
+        statusEl.hidden = false;
+        statusEl.innerHTML = `
+          <div class="image-upload-status-card">
+            <strong>未保存の失敗画像</strong>
+            <div>${visibleEntries.map((entry) => `<span class="chip">${escapeHtml(getDisplayImageName(entry))}</span>`).join('')}</div>
+            <div style="margin-top: 8px;"><button class="btn btn-small btn-accent" type="button" data-action="retry-failed-images">残りの失敗画像を保存</button></div>
+          </div>`;
+      }
+
       function renderCharacterImages() {
+        renderImageUploadStatus();
         const character = getActiveCharacter();
         const images = character?.images || [];
         if (!character) {
@@ -1520,19 +1633,38 @@
         if (!character) { notify('先にキャラを保存してください'); event.target.value = ''; return; }
         const files = event.target.files;
         if (!files?.length) return;
-        const images = await createCharacterImagesFromFiles(files);
-        if (!images.length) return;
-        character.images = [...(character.images || []), ...images];
-        save(CHARACTER_KEY, characters);
+        const result = await addCharacterImagesFromFiles(files);
         renderCharacterImages();
-        notify(`${images.length}件の参照画像を追加しました`);
+        const notifications = [];
+        if (result.saved) {
+          const detail = result.failed ? `保存できた${result.saved}件・保留${result.failed}件（${result.failedNames?.join(', ') || '保留画像なし'}）` : `${result.saved}件の参照画像を追加しました`;
+          notifications.push(detail);
+        } else if (result.failed) {
+          notifications.push(`容量オーバーのため、保存できた枚数は0件・保留${result.failed}件でした。『残りの失敗画像を保存』で再試行できます。`);
+        }
+        renderImageUploadStatus();
+        if (notifications.length) notify(notifications.join(' / '));
         event.target.value = '';
       });
-      $('characterImageList').addEventListener('click', (event) => {
+      $('characterImageSection').addEventListener('click', (event) => {
         const button = event.target.closest('button[data-action]');
         if (!button) {
           const previewButton = event.target.closest('.image-thumb');
           if (previewButton?.dataset.imageId) openImagePreview(previewButton.dataset.imageId);
+          return;
+        }
+        if (button.dataset.action === 'retry-failed-images') {
+          (async () => {
+            const result = await retryPendingFailedImages();
+            renderCharacterImages();
+            if (result.saved) {
+              notify(result.failed ? `保留中の画像を再保存しました。保存${result.saved}件・残り${result.failed}件` : `${result.saved}件の失敗画像を保存しました`);
+            } else if (result.failed) {
+              notify('まだ容量オーバーのため、保留中の画像は保存できませんでした。');
+            } else {
+              notify('保留中の失敗画像はありません。');
+            }
+          })();
           return;
         }
         const imageId = button.dataset.imageId;
